@@ -31,7 +31,7 @@ const devProcess = {
         name: 'Work again on the code',
         type: TYPE_DEV,
         behaviour: FRACTION_TIME,
-        fraction: 0.25,
+        fraction: 0.20,
         choices: [{
             title: 'Send your code to review',
             description: 'You hope your code is good enough!',
@@ -45,7 +45,7 @@ const devProcess = {
         name: 'Code review',
         type: TYPE_REVIEW,
         behaviour: FRACTION_TIME,
-        fraction: 0.33,
+        fraction: 0.25,
         choices: [{
             title: 'Pass code review',
             description: 'The quality of the code is good!',
@@ -65,7 +65,7 @@ const devProcess = {
         name: 'QA',
         type: TYPE_QA,
         behaviour: FRACTION_TIME,
-        fraction: 0.5,
+        fraction: 0.4,
         choices: [{
             title: 'Pass QA',
             description: 'You respected the functional requirements',
@@ -85,7 +85,7 @@ const devProcess = {
         name: 'Regression QA',
         type: TYPE_QA,
         behaviour: FRACTION_TIME,
-        fraction: 0.25,
+        fraction: 0.20,
         choices: [{
             title: 'Pass Regression',
             description: 'Everything still work',
@@ -145,7 +145,7 @@ const devProcess = {
         name: 'Architecture review',
         type: TYPE_AA_REVIEW,
         behaviour: FRACTION_TIME,
-        fraction: 0.5,
+        fraction: 0.4,
         choices: [{
             title: 'Pass aa review',
             description: 'The quality of the code is good!',
