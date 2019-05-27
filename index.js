@@ -239,9 +239,9 @@ function variation(before, after) {
     }
 }
 
-////////////////////
-// Battle engine //
-//////////////////
+/////////////////////////
+// Dev process engine //
+///////////////////////
 
 function generateProcess(devProcess, firstStep) {
     const p = R.prop(R.__, devProcess);
@@ -287,66 +287,6 @@ function generateProcess(devProcess, firstStep) {
 // Views //
 //////////
 
-
-// attackView :: object -> string
-function attackView(attack) {
-    // isAttackPossible :: boolean -> null || string
-    function isAttackPossible(possibleOrNot) {
-        return (possibleOrNot) ? null : 'disabled="true"';
-    }
-
-    const p = R.prop(R.__, attack);
-    const isPossible = isAttackPossible(battle.canAttack(p('origin'), p('cost')));
-
-    registerEvents(
-        [{
-            type: 'click',
-            funct: registerAttack
-        }]
-    );
-
-    return `<button
-            class="attack"
-            ${isPossible}
-            data-cost="${p('cost')}"
-            data-damage="${p('damage')}"
-            data-function-identifier="${MAKE_AN_ATTACK}"
-            data-loading="${p('loading')}"
-            data-name="${p('name')}"
-            data-origin="${p('origin')}"
-            data-target="${p('target')}"
-            data-type="${p('type')}"
-            >
-            ${p('name')}
-          </button>`;
-}
-
-// stackView :: (object, number) -> string
-function stackView(nextAttack, index) {
-    const p = R.prop(R.__, nextAttack);
-    const canRemoveAttackFromStack = (R.equals(0, index)) ? 'disabled="true"' : null;
-
-    registerEvents(
-        [{
-            type: 'click',
-            funct: cancelAttack
-        }]
-    );
-
-    return `<li>
-            ${p('name')}
-            <button
-              ${canRemoveAttackFromStack}
-              data-cost="${p('cost')}"
-              data-function-identifier="${CANCEL_AN_ATTACK}"
-              data-origin="${p('origin')}"
-              data-stack-index="${index}"
-              >
-              X
-            </button>
-          </li>`;
-}
-
 function nextChoiceView(choice, index) {
     log(choice);
     return R.cond([
@@ -357,7 +297,7 @@ function nextChoiceView(choice, index) {
 }
 
 function nothingView(choice) {
-    return `<h3>You are done!</h3>`
+    return `<h3>You are done!</h3>`;
 }
 
 function choiceView(choice) {
