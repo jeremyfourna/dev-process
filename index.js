@@ -21,14 +21,14 @@ const NOTHING = 'NOTHING';
 const devProcess = {
     firstDev: {
         id: 'first-dev',
-        name: 'Development',
+        name: 'Initial development',
         behaviour: ASK_DURATION,
         type: TYPE_DEV,
         nextStep: 'codeReview'
     },
     dev: {
         id: 'dev',
-        name: 'Work again on the code',
+        name: 'More work on the code',
         type: TYPE_DEV,
         behaviour: FRACTION_TIME,
         fraction: 0.20,
@@ -364,7 +364,7 @@ function choiceView(choice) {
     const p = R.prop(R.__, choice);
 
     return `<h3>Next step in the process: ${p('name')}</h3>
-            ${template(selectAnswerView, p('choices'))}`;
+            <div class="container-button">${template(selectAnswerView, p('choices'))}</div>`;
 }
 
 function selectAnswerView(answer) {
@@ -382,8 +382,9 @@ function selectAnswerView(answer) {
                 data-target="${p('target')}"
                 data-function-identifier="${p('type')}"
                 >
-                ${p('title')}<br>${p('description')}
-            </button>`;
+                ${p('title')}
+            </button>
+            <div class="${p('className')}-description">${p('description')}</div>`;
 }
 
 // selectedAnwser :: DOM event -> void
@@ -435,15 +436,17 @@ function wholeDevProcess(devProcess) {
 
     log(devProcess);
 
-    return `<p>Current process duration: ${currentProcess.duration()}, ${currentProcess.durationAgainstBaseDuration()}%</p>
+    return `<p>Current process duration: <b>${currentProcess.duration()}</b> hours, +${currentProcess.durationAgainstBaseDuration()}%</p>
             <p>In number of work days: ${cleanNumber(currentProcess.duration()/8)}</p>
-            <div class="previous-choices">
-                <h2>List of previous choices</h2>
-                <div><ul>${template(previousChoicesView, p('previousChoices'))}</ul></div>
-            </div>
-            <div class="next-choice">
-                <h2>Next choice</h2>
-                <div>${template(nextChoiceView, [p('nextChoice')])}</div>
+            <div class="container">
+                <div class="next-choice">
+                    <h2>Next choice</h2>
+                    <div>${template(nextChoiceView, [p('nextChoice')])}</div>
+                </div>
+                <div class="previous-choices">
+                    <h2>List of previous choices</h2>
+                    <div><ol>${template(previousChoicesView, p('previousChoices'))}</ol></div>
+                </div>
             </div>`;
 }
 
