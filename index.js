@@ -45,7 +45,7 @@ const devProcess = {
         name: 'Code review',
         type: TYPE_REVIEW,
         behaviour: FRACTION_TIME,
-        fraction: 0.25,
+        fraction: 0.15,
         choices: [{
             title: 'Pass code review',
             description: 'The quality of the code is good!',
@@ -65,7 +65,7 @@ const devProcess = {
         name: 'QA',
         type: TYPE_QA,
         behaviour: FRACTION_TIME,
-        fraction: 0.4,
+        fraction: 0.20,
         choices: [{
             title: 'Pass QA',
             description: 'You respected the functional requirements',
@@ -89,7 +89,7 @@ const devProcess = {
         choices: [{
             title: 'Pass Regression',
             description: 'Everything still work',
-            target: 'release',
+            target: 'demo',
             className: 'success',
             type: ANSWER_SELECTED
         }, {
@@ -102,7 +102,7 @@ const devProcess = {
     },
     demo: {
         id: 'regression',
-        name: 'Regression QA',
+        name: 'Demo to PM',
         type: TYPE_QA,
         behaviour: FRACTION_TIME,
         fraction: 0,
@@ -110,7 +110,7 @@ const devProcess = {
             title: 'Pass product demo',
             description: 'Your PM is happy',
             target: 'release',
-            className: 'demo',
+            className: 'success',
             type: ANSWER_SELECTED
         }, {
             title: 'Fail product demo',
@@ -125,7 +125,7 @@ const devProcess = {
         name: 'Release',
         type: TYPE_RELEASE,
         behaviour: FRACTION_TIME,
-        fraction: 0.1,
+        fraction: 0.05,
         choices: [{
             title: 'Your code is released!!!',
             description: 'Lets go party',
@@ -145,7 +145,7 @@ const devProcess = {
         name: 'Architecture review',
         type: TYPE_AA_REVIEW,
         behaviour: FRACTION_TIME,
-        fraction: 0.4,
+        fraction: 0.15,
         choices: [{
             title: 'Pass aa review',
             description: 'The quality of the code is good!',
