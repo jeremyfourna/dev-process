@@ -170,7 +170,7 @@ const devProcess = {
 };
 
 ////////////////////////////////////
-// Generate battle and render it //
+// Generate dev process and render it //
 //////////////////////////////////
 
 const currentProcess = generateProcess(devProcess, 'firstDev');
