@@ -32,119 +32,106 @@ const statusThatResetIteration = [
 
 const devProcess = {
     waitingDev: {
-        finish: () => 'waitingDevCodeReview',
-        remainingEstimate: (iteration, estimate) => 1 + estimate * 0.125
+        finish: (iteration, estimate) => ['waitingDevCodeReview', 1 + estimate * 0.125]
     },
     waitingDevCodeReview: {
-        finish: iteration => R.cond([
-            [R.equals(0), () => flip(0.5, 'fixDevCodeReview', 'techLeadCodeReview')],
-            [R.T, R.always('techLeadCodeReview')]
-        ])(iteration),
-        remainingEstimate: (iteration, estimate) => R.cond([
-            [R.equals(0), () => 4],
-            [R.T, () => 1 + estimate * 0.125]
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), () => flip(0.5, ['fixDevCodeReview', 4], ['techLeadCodeReview', 1 + estimate * 0.125])],
+            [R.T, R.always(['techLeadCodeReview', 1 + estimate * 0.125])]
         ])(iteration)
     },
     fixDevCodeReview: {
-        finish: () => 'techLeadCodeReview',
-        remainingEstimate: (iteration, estimate) => 1 + estimate * 0.125
+        finish: (iteration, estimate) => ['techLeadCodeReview', 1 + estimate * 0.125]
     },
     techLeadCodeReview: {
-        finish: iteration => R.cond([
-            [R.equals(0), R.always('fixTechLeadCodeReview')],
-            [R.equals(1), () => flip(0.3, 'fixTechLeadCodeReview', 'readyForQa')],
-            [R.equals(2), () => flip(0.1, 'fixTechLeadCodeReview', 'readyForQa')],
-            [R.T, R.always('readyForQa')]
-        ])(iteration),
-        remainingEstimate: (iteration, estimate) => R.cond([
-            [R.equals(0), () => 4],
-            [R.equals(1), () => 3],
-            [R.equals(2), () => 2],
-            [R.T, () => estimate / 2]
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), R.always(['fixTechLeadCodeReview', 4])],
+            [R.equals(1), () => flip(0.3, ['fixTechLeadCodeReview', 2], ['readyForQa', estimate / 2])],
+            [R.equals(2), () => flip(0.1, ['fixTechLeadCodeReview', 1], ['readyForQa', estimate / 2])],
+            [R.T, R.always(['readyForQa', estimate / 2])]
         ])(iteration)
     },
     fixTechLeadCodeReview: {
-        finish: () => 'techLeadCodeReview',
-        remainingEstimate: (iteration, estimate) => 1 + estimate * 0.125
+        finish: (iteration, estimate) => ['techLeadCodeReview', 1 + estimate * 0.125],
     },
     readyForQa: {
-        finish: iteration => R.cond([
-            [R.equals(0), R.always('bugFixQa')],
-            [R.equals(1), () => flip(0.3, 'bugFixQa', 'readyAAReview')],
-            [R.equals(2), () => flip(0.1, 'bugFixQa', 'readyAAReview')],
-            [R.T, R.always('readyAAReview')]
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), R.always(['bugFixQa', estimate / 2])],
+            [R.equals(1), () => flip(0.3, ['bugFixQa', 4], ['readyAAReview', estimate / 2])],
+            [R.equals(2), () => flip(0.1, ['bugFixQa', 2], ['readyAAReview', estimate / 2])],
+            [R.T, R.always(['readyAAReview', estimate / 2])]
         ])(iteration)
     },
     bugFixQa: {
-        finish: () => 'waitingDevCodeReviewForQA'
+        finish: (iteration, estimate) => ['waitingDevCodeReviewForQA', 1 + estimate * 0.125]
     },
     waitingDevCodeReviewForQA: {
-        finish: iteration => R.cond([
-            [R.equals(0), () => flip(0.2, 'fixDevCodeReviewForQa', 'techLeadCodeReviewForQa')],
-            [R.T, R.always('techLeadCodeReviewForQa')]
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), () => flip(0.2, ['fixDevCodeReviewForQa', 3], ['techLeadCodeReviewForQa', 1 + estimate * 0.125])],
+            [R.T, R.always(['techLeadCodeReviewForQa', 1 + estimate * 0.125])]
         ])(iteration)
     },
     fixDevCodeReviewForQa: {
-        finish: () => 'techLeadCodeReviewForQa'
+        finish: (iteration, estimate) => ['techLeadCodeReviewForQa', 1 + estimate * 0.125]
     },
     techLeadCodeReviewForQa: {
-        finish: iteration => R.cond([
-            [R.equals(0), () => flip(0.3, 'fixTechLeadCodeReviewForQa', 'readyForQa')],
-            [R.T, R.always('readyForQa')]
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), () => flip(0.3, ['fixTechLeadCodeReviewForQa', 3], ['readyForQa', 3])],
+            [R.T, R.always(['readyForQa', 3])]
         ])(iteration)
     },
     fixTechLeadCodeReviewForQa: {
-        finish: () => 'techLeadCodeReviewForQa'
+        finish: (iteration, estimate) => ['techLeadCodeReviewForQa', 1]
     },
     readyAAReview: {
-        finish: iteration => R.cond([
-            [R.equals(0), R.always('fixAAReview')],
-            [R.equals(1), () => flip(0.5, 'fixAAReview', 'readyForRegression')],
-            [R.equals(2), () => flip(0.1, 'fixAAReview', 'readyForRegression')],
-            [R.T, R.always('readyForRegression')]
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), R.always(['fixAAReview', estimate / 2])],
+            [R.equals(1), () => flip(0.5, ['fixAAReview', estimate / 4], ['readyForRegression', estimate / 2])],
+            [R.equals(2), () => flip(0.1, ['fixAAReview', estimate / 6], ['readyForRegression', estimate / 2])],
+            [R.T, R.always(['readyForRegression', estimate / 2])]
         ])(iteration)
     },
     fixAAReview: {
-        finish: () => 'readyAAReview'
+        finish: (iteration, estimate) => ['readyAAReview', estimate / 4]
     },
     readyForRegression: {
-        finish: iteration => R.cond([
-            [R.equals(0), () => flip(0.5, 'bugFixRegression', 'readyForDemo')],
-            [R.T, R.always('readyForDemo')]
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), () => flip(0.5, ['bugFixRegression', 3], ['readyForDemo', 1])],
+            [R.T, R.always(['readyForDemo', 1])]
         ])(iteration)
     },
     bugFixRegression: {
-        finish: () => 'waitingTechLeadReviewForRegression'
+        finish: (iteration, estimate) => ['waitingTechLeadReviewForRegression', 1]
     },
     waitingTechLeadReviewForRegression: {
-        finish: () => 'waitingAAReviewForRegression'
+        finish: (iteration, estimate) => ['waitingAAReviewForRegression', 1]
     },
     waitingAAReviewForRegression: {
-        finish: () => 'readyForRegression'
+        finish: (iteration, estimate) => ['readyForRegression', 2]
     },
     readyForDemo: {
-        finish: iteration => R.cond([
-            [R.equals(0), () => flip(0.05, 'bugFixDemo', 'readyForRelease')],
-            [R.T, R.always('readyForRelease')]
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), () => flip(0.05, ['bugFixDemo', 4], ['readyForRelease', 2])],
+            [R.T, R.always(['readyForRelease', 2])]
         ])(iteration)
     },
     bugFixDemo: {
-        finish: () => 'waitingTechLeadReviewForDemo'
+        finish: (iteration, estimate) => ['waitingTechLeadReviewForDemo', 2]
     },
     waitingTechLeadReviewForDemo: {
-        finish: () => 'waitingAAReviewForDemo'
+        finish: (iteration, estimate) => ['waitingAAReviewForDemo', 1]
     },
     waitingAAReviewForDemo: {
-        finish: () => 'readyForRegression'
+        finish: (iteration, estimate) => ['readyForRegression', estimate / 6]
     },
     readyForRelease: {
-        finish: () => 'shipped'
+        finish: (iteration, estimate) => ['shipped', 0]
     }
 };
 
 const people = [{
         type: 'dev',
-        amount: 1,
+        amount: 5,
         statusToLookFor: [
             'waitingDev',
             'waitingDevCodeReview',
@@ -191,14 +178,15 @@ const people = [{
 ];
 
 const workToDo = [
-    { type: 'feature', amount: 1 }
+    { type: 'feature', amount: 10 }
 ];
+
 
 ////////////////////////////////////
 // Generate dev process and render it //
 //////////////////////////////////
 
-const currentProcess = generateProcess(devProcess, people, workToDo);
+const currentProcess = generateProcess(devProcess, people, workToDo, Date.now());
 currentProcess.render();
 currentProcess.startProcess();
 
@@ -207,7 +195,7 @@ currentProcess.startProcess();
 // Dev process engine //
 ///////////////////////
 
-function generateProcess(devProcess, peopleConfiguration, workload) {
+function generateProcess(devProcess, peopleConfiguration, workload, startTimeOfWholeProcess) {
     const p = R.prop(R.__, devProcess);
     const store = {
         devProcess,
@@ -217,7 +205,13 @@ function generateProcess(devProcess, peopleConfiguration, workload) {
 
     return {
         render: () => render('.dev-process', template(wholeDevProcess, [store])),
-        startProcess: () => findWorkToDo(store.people),
+        startProcess: () => {
+            if ((Date.now() - startTimeOfWholeProcess) / 1000 <= 60) {
+                asyncFunction(newSprint, 80, 10);
+            }
+
+            findWorkToDo(R.filter(cur => cur.busy === false, store.people));
+        },
         findTaskForPeople: person => {
             const result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(cur.status, person.statusToLookFor)), store.workToDo));
 
@@ -263,7 +257,7 @@ function generateProcess(devProcess, peopleConfiguration, workload) {
             }
         },
         transition: (person, task) => {
-            const newStatus = store.devProcess[task.status].finish(task.iteration);
+            const newStatusAndEstimate = store.devProcess[task.status].finish(task.iteration);
             const updatedPeople = R.evolve({
                 busy: R.F,
                 workOn: R.always(null),
@@ -272,15 +266,16 @@ function generateProcess(devProcess, peopleConfiguration, workload) {
             }, person);
             const updatedTask = R.evolve({
                 busy: R.F,
-                status: R.always(newStatus),
+                status: R.always(R.head(newStatusAndEstimate)),
                 iteration: R.cond([
-                    [() => R.or(R.includes(newStatus, statusThatIncreaseIteration), R.includes(newStatus, task.previousStatuses)), R.inc],
-                    [() => R.includes(newStatus, statusThatResetIteration), R.always(0)],
+                    [() => R.or(R.includes(R.head(newStatusAndEstimate), statusThatIncreaseIteration), R.includes(R.head(newStatusAndEstimate), task.previousStatuses)), R.inc],
+                    [() => R.includes(R.head(newStatusAndEstimate), statusThatResetIteration), R.always(0)],
                     [R.T, R.identity]
                 ]),
                 previousStatuses: R.append(task.status),
                 busyTime: R.add(addTime(person.startTime)),
-                startTime: R.always(Date.now())
+                startTime: R.always(Date.now()),
+                estimate: R.always(R.last(newStatusAndEstimate))
             }, task);
 
             store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
@@ -289,8 +284,21 @@ function generateProcess(devProcess, peopleConfiguration, workload) {
             findWorkToDo([updatedPeople]);
             findPeopleToWork([updatedTask]);
 
+        },
+        startNewSprint: nbTickets => {
+            const workToDo = [
+                { type: 'feature', amount: nbTickets }
+            ];
+
+            store.workToDo = R.concat(store.workToDo, generateWork(workToDo, R.length(store.workToDo)));
         }
     };
+}
+
+function newSprint(nbTickets) {
+    log('newSprint');
+    currentProcess.startNewSprint(nbTickets);
+    currentProcess.startProcess();
 }
 
 function addTime(time) {
@@ -318,10 +326,10 @@ function generatePeople(peopleConfiguration) {
     )(peopleConfiguration);
 }
 
-function generateWork(workload) {
+function generateWork(workload, currentIndex = 0) {
     return R.compose(
         mapIndexed((cur, index) => R.evolve({
-            index: R.always(index),
+            index: R.always(index + currentIndex),
             identifier: () => r()
         }, cur)),
         R.flatten,
@@ -333,6 +341,7 @@ function generateWork(workload) {
             busyTime: 0,
             restingTime: 0,
             estimate: 8,
+            originalEstimate: 8,
             previousStatuses: [],
             startTime: Date.now(),
             status: 'waitingDev',
@@ -475,7 +484,7 @@ function taskView(task) {
     return `<tr>
                 <td>${p('identifier')}</td>
                 <td>${p('status')}</td>
-                <td>${p('estimate')}</td>
+                <td>${p('originalEstimate')}</td>
                 <td>${cleanNumber(p('busyTime'))}</td>
                 <td>${cleanNumber(p('restingTime'))}</td>
             </tr>`;
