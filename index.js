@@ -19,247 +19,58 @@ const NOTHING = 'NOTHING';
 ///////////////
 
 const devProcess = {
-    firstDev: {
-        id: 'first-dev',
-        name: 'Initial development',
-        behaviour: ASK_DURATION,
-        type: TYPE_DEV,
-        nextStep: 'codeReview'
+    new: {
+        ifOK: { type: 'devInProgress', iteration: 0 },
+        ifKO: null
     },
-    dev: {
-        id: 'dev',
-        name: 'More work on the code',
-        type: TYPE_DEV,
-        behaviour: FRACTION_TIME,
-        fraction: 0.20,
-        choices: [{
-            title: 'Send your code to review',
-            description: 'You hope your code is good enough!',
-            target: 'codeReview',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }]
+    devInProgress: {
+        ifOK: { type: 'devCodeReview', iteration: 0 },
+        ifKO: null
     },
-    codeReview: {
-        id: 'code-review',
-        name: 'Code review',
-        type: TYPE_REVIEW,
-        behaviour: FRACTION_TIME,
-        fraction: 0.15,
-        choices: [{
-            title: 'Pass code review',
-            description: 'The quality of the code is good!',
-            target: 'qa',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'Fail code review',
-            description: 'The quality of the code is not good enough',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
-    },
-    qa: {
-        id: 'qa',
-        name: 'QA',
-        type: TYPE_QA,
-        behaviour: FRACTION_TIME,
-        fraction: 0.20,
-        choices: [{
-            title: 'Pass QA',
-            description: 'You respected the functional requirements',
-            target: 'aaReview',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'Fail QA',
-            description: 'Dude, it is full of bugs',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
-    },
-    regression: {
-        id: 'regression',
-        name: 'Regression QA',
-        type: TYPE_QA,
-        behaviour: FRACTION_TIME,
-        fraction: 0.20,
-        choices: [{
-            title: 'Pass Regression',
-            description: 'Everything still work',
-            target: 'demo',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'Fail Regression',
-            description: 'Dude, it is full of bugs again',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
-    },
-    demo: {
-        id: 'regression',
-        name: 'Demo to PM',
-        type: TYPE_QA,
-        behaviour: FRACTION_TIME,
-        fraction: 0,
-        choices: [{
-            title: 'Pass product demo',
-            description: 'Your PM is happy',
-            target: 'release',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'Fail product demo',
-            description: 'Your PM is not happy at all',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
-    },
-    release: {
-        id: 'release',
-        name: 'Release',
-        type: TYPE_RELEASE,
-        behaviour: FRACTION_TIME,
-        fraction: 0.05,
-        choices: [{
-            title: 'Your code is released!!!',
-            description: 'Lets go party',
-            target: 'itIsOver',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'You have conflicts to fix',
-            description: 'More work for you',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
-    },
-    aaReview: {
-        id: 'aa-review',
-        name: 'Architecture review',
-        type: TYPE_AA_REVIEW,
-        behaviour: FRACTION_TIME,
-        fraction: 0.15,
-        choices: [{
-            title: 'Pass aa review',
-            description: 'The quality of the code is good!',
-            target: 'regression',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'Fail architecture code review',
-            description: 'The architecture of the code is not good enough',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
-    },
-    itIsOver: {
-        id: 'it-is-over',
-        name: 'You are done',
-        behaviour: NOTHING,
-        fraction: 0,
-        type: NOTHING
+    devCodeReview: {
+        ifOK: { type: 'techLeadCodeReview', iteration: 0 },
+        ifKO: { type: 'fixDevCodeReview', iteration: 1 }
     }
 };
+
+const people = [
+    { type: 'dev', amount: 5, statusToLookFor: ['new', 'devCodeReview', 'fixDevCodeReview'] },
+    { type: 'techLead', amount: 1, statusToLookFor: ['techLeadCodeReview'] },
+    { type: 'architect', amount: 1 },
+    { type: 'qa', amount: 1 },
+    { type: 'po', amount: 1 }
+];
+
+const workToDo = [
+    { type: 'feature', amount: 5 },
+    { type: 'bug', amount: 2 }
+];
 
 ////////////////////////////////////
 // Generate dev process and render it //
 //////////////////////////////////
 
-const currentProcess = generateProcess(devProcess, 'firstDev');
+const currentProcess = generateProcess(devProcess, people, workToDo);
 currentProcess.render();
 
-////////////
-// Utils //
-//////////
-
-// render :: (string, string) -> void
-function render(domSelector, content) {
-    const parser = new DOMParser();
-    const doc = R.path(
-        ['body', 'innerHTML'],
-        parser.parseFromString(content, 'text/html')
-    );
-    const domElements = document.querySelectorAll(domSelector);
-
-    R.forEach(cur => cur.innerHTML = doc, domElements);
-}
-
-// template :: (function, array) -> string
-function template(view, list) {
-    const mapIndexed = R.addIndex(R.map);
-
-    return R.join('', mapIndexed(view, list));
-}
-
-// datasetTransform :: object -> object
-function datasetTransform(dataset) {
-    const transformations = {
-        duration: Number
-    };
-
-    return R.evolve(transformations, dataset);
-}
-
-function log(content) {
-    console.log(...arguments);
-
-    return content;
-}
-
-function cleanNumber(number) {
-    return R.divide(Math.round(R.multiply(number, 100)), 100);
-}
-
-function timeFraction(duration, iteration, number) {
-    return duration * number / iteration;
-}
-
-function iterationOfStep(currentStepType) {
-    return R.cond([
-        [R.equals(TYPE_DEV), R.always('iterationDev')],
-        [R.equals(TYPE_REVIEW), R.always('iterationReview')],
-        [R.equals(TYPE_QA), R.always('iterationQa')],
-        [R.equals(TYPE_AA_REVIEW), R.always('iterationAAReview')],
-    ])(currentStepType);
-}
-
-function variation(before, after) {
-    if (before === 0) {
-        return 100;
-    } else {
-        return (after - before) / before * 100;
-    }
-}
 
 /////////////////////////
 // Dev process engine //
 ///////////////////////
 
-function generateProcess(devProcess, firstStep) {
+function generateProcess(devProcess, peopleConfiguration, workload) {
     const p = R.prop(R.__, devProcess);
     const store = {
         devProcess,
-        previousChoices: [],
-        nextChoice: R.prop(firstStep, devProcess),
-        processBaseDuration: 0,
-        processTotalDuration: 0,
-        iterationDev: 0,
-        iterationQa: 0,
-        iterationReview: 0,
-        iterationAAReview: 0,
-        iterationRelease: 0
+        workToDo: generateWork(workload),
+        people: generatePeople(peopleConfiguration)
     };
 
     return {
         render: () => render('.dev-process', template(wholeDevProcess, [store])),
+        startProcess: () => findWorkToDo(store.workToDo, store.people),
+        updateWorkToDO: work => store.workToDo = work,
+        updatePeople: listOfPeople => store.people = listOfPeople,
         durationForProcessStep: duration => {
             store.processBaseDuration = duration;
             store.iterationDev += 1;
@@ -280,6 +91,36 @@ function generateProcess(devProcess, firstStep) {
         duration: () => cleanNumber(store.processTotalDuration),
         durationAgainstBaseDuration: () => cleanNumber(variation(store.processBaseDuration, store.processTotalDuration))
     };
+}
+
+function generatePeople(peopleConfiguration) {
+    return R.compose(
+        R.flatten,
+        R.map(cur => R.repeat({
+            type: R.prop('type', cur),
+            toDoList: [],
+            currentJob: null,
+            statusToLookFor: R.prop('statusToLookFor', cur)
+        }, R.prop('amount', cur)))
+    )(peopleConfiguration);
+}
+
+function generateWork(workload) {
+    return R.compose(
+        R.flatten,
+        R.map(cur => R.repeat({
+            type: R.prop('type', cur),
+            estimate: 8,
+            status: 'new',
+            duration: 0,
+            waitingTime: 0,
+            startTime: Date.now()
+        }, R.prop('amount', cur)))
+    )(workload);
+}
+
+function findWorkToDo(workToDo, people) {
+
 }
 
 
@@ -337,33 +178,6 @@ function selectedAnwser(event) {
     }
 }
 
-function askDurationView(choice) {
-    const p = R.prop(R.__, choice);
-
-    registerEvents(
-        [{
-            type: 'submit',
-            funct: getFormData(ASK_DURATION, saveDuration)
-        }]
-    );
-
-    return `<h3>Next step in the process: ${p('name')}</h3>
-            <form id="${ASK_DURATION}" name="${ASK_DURATION}">
-                <div class="form-input">
-                    <label for="duration">How long this part of the process should take in <em>hours</em>?</label>
-                    <input type="number" min="1" step="1" name="duration" value="8" required="true">
-                </div>
-                <button type="submit" class="validate-choice">Validate your choice</button>
-            </form>`;
-}
-
-function saveDuration(event) {
-    const properData = datasetTransform(event);
-
-    currentProcess.durationForProcessStep(R.prop('duration', properData));
-    currentProcess.render();
-}
-
 function previousChoicesView(choice) {
     const p = R.prop(R.__, choice);
 
@@ -376,23 +190,18 @@ function wholeDevProcess(devProcess) {
 
     log(devProcess);
 
-    return `<p>Current process duration: <b>${currentProcess.duration()}</b> hours, +${currentProcess.durationAgainstBaseDuration()}%</p>
-            <p>In number of work days: ${cleanNumber(currentProcess.duration()/8)}</p>
-            <div class="container">
-                <div class="next-choice">
-                    <h2>Next choice</h2>
-                    <div>${template(nextChoiceView, [p('nextChoice')])}</div>
-                </div>
-                <div class="previous-choices">
-                    <h2>List of previous choices</h2>
-                    <div><ol>${template(previousChoicesView, p('previousChoices'))}</ol></div>
-                </div>
-            </div>`;
+    return `<p>Hello</p>`;
 }
+
 
 /////////////
 // Events //
 ///////////
+
+// asyncFunction :: (number, object) -> number
+function asyncFunction(functionToApply, delay, params) {
+    return window.setTimeout(functionToApply, loadingToMillisec(delay), params);
+}
 
 // registerEvents :: [object] -> void
 function registerEvents(listOfEvents) {
@@ -400,6 +209,75 @@ function registerEvents(listOfEvents) {
         const p = R.prop(R.__, cur);
         document.body.addEventListener(p('type'), p('funct'), false);
     }, listOfEvents);
+}
+
+
+////////////
+// Utils //
+//////////
+
+// render :: (string, string) -> void
+function render(domSelector, content) {
+    const parser = new DOMParser();
+    const doc = R.path(
+        ['body', 'innerHTML'],
+        parser.parseFromString(content, 'text/html')
+    );
+    const domElements = document.querySelectorAll(domSelector);
+
+    R.forEach(cur => cur.innerHTML = doc, domElements);
+}
+
+// template :: (function, array) -> string
+function template(view, list) {
+    const mapIndexed = R.addIndex(R.map);
+
+    return R.join('', mapIndexed(view, list));
+}
+
+// datasetTransform :: object -> object
+function datasetTransform(dataset) {
+    const transformations = {
+        duration: Number
+    };
+
+    return R.evolve(transformations, dataset);
+}
+
+// loadingToMillisec :: number -> number
+function loadingToMillisec(loading) {
+    return R.multiply(loading, 1000);
+}
+
+function log(content) {
+    console.log(...arguments);
+
+    return content;
+}
+
+function cleanNumber(number) {
+    return R.divide(Math.round(R.multiply(number, 100)), 100);
+}
+
+function timeFraction(duration, iteration, number) {
+    return duration * number / iteration;
+}
+
+function iterationOfStep(currentStepType) {
+    return R.cond([
+        [R.equals(TYPE_DEV), R.always('iterationDev')],
+        [R.equals(TYPE_REVIEW), R.always('iterationReview')],
+        [R.equals(TYPE_QA), R.always('iterationQa')],
+        [R.equals(TYPE_AA_REVIEW), R.always('iterationAAReview')],
+    ])(currentStepType);
+}
+
+function variation(before, after) {
+    if (before === 0) {
+        return 100;
+    } else {
+        return (after - before) / before * 100;
+    }
 }
 
 // getFormData :: string -> object -> object
