@@ -4,46 +4,181 @@
 // Constants //
 //////////////
 
-const ASK_DURATION = 'ask-duration';
-const FRACTION_TIME = 'fraction-time';
-const TYPE_DEV = 'dev';
-const TYPE_REVIEW = 'review';
-const TYPE_QA = 'qa';
-const TYPE_AA_REVIEW = 'aa-review';
-const TYPE_RELEASE = 'release';
-const ANSWER_SELECTED = 'answer-selected';
-const NOTHING = 'NOTHING';
+const isNotNil = R.complement(R.isNil);
+const isNotEmpty = R.complement(R.isEmpty);
+const mapIndexed = R.addIndex(R.map);
+const hoursInADay = 8;
+const statusThatIncreaseIteration = [
+    'fixDevCodeReview',
+    'fixTechLeadCodeReview',
+    'bugFixQa',
+    'fixDevCodeReviewForQa',
+    'fixTechLeadCodeReviewForQa',
+    'fixAAReview',
+    'bugFixRegression',
+    'bugFixDemo'
+];
+const statusThatResetIteration = [
+    'readyForQa',
+    'readyAAReview',
+    'readyForRegression',
+    'readyForDemo',
+    'readyForRelease'
+];
 
 /////////////////
 // Definition //
 ///////////////
 
 const devProcess = {
-    new: {
-        ifOK: { type: 'devInProgress', iteration: 0 },
-        ifKO: null
+    waitingDev: {
+        finish: () => 'waitingDevCodeReview'
     },
-    devInProgress: {
-        ifOK: { type: 'devCodeReview', iteration: 0 },
-        ifKO: null
+    waitingDevCodeReview: {
+        finish: iteration => R.cond([
+            [R.equals(0), () => flip(0.5, 'fixDevCodeReview', 'techLeadCodeReview')],
+            [R.T, R.always('techLeadCodeReview')]
+        ])(iteration)
     },
-    devCodeReview: {
-        ifOK: { type: 'techLeadCodeReview', iteration: 0 },
-        ifKO: { type: 'fixDevCodeReview', iteration: 1 }
+    fixDevCodeReview: {
+        finish: () => 'techLeadCodeReview'
+    },
+    techLeadCodeReview: {
+        finish: iteration => R.cond([
+            [R.equals(0), R.always('fixTechLeadCodeReview')],
+            [R.equals(1), () => flip(0.3, 'fixTechLeadCodeReview', 'readyForQa')],
+            [R.equals(2), () => flip(0.1, 'fixTechLeadCodeReview', 'readyForQa')],
+            [R.T, R.always('readyForQa')]
+        ])(iteration)
+    },
+    fixTechLeadCodeReview: {
+        finish: () => 'techLeadCodeReview'
+    },
+    readyForQa: {
+        finish: iteration => R.cond([
+            [R.equals(0), R.always('bugFixQa')],
+            [R.equals(1), () => flip(0.3, 'bugFixQa', 'readyAAReview')],
+            [R.equals(2), () => flip(0.1, 'bugFixQa', 'readyAAReview')],
+            [R.T, R.always('readyAAReview')]
+        ])(iteration)
+    },
+    bugFixQa: {
+        finish: () => 'waitingDevCodeReviewForQA'
+    },
+    waitingDevCodeReviewForQA: {
+        finish: iteration => R.cond([
+            [R.equals(0), () => flip(0.2, 'fixDevCodeReviewForQa', 'techLeadCodeReviewForQa')],
+            [R.T, R.always('techLeadCodeReviewForQa')]
+        ])(iteration)
+    },
+    fixDevCodeReviewForQa: {
+        finish: () => 'techLeadCodeReviewForQa'
+    },
+    techLeadCodeReviewForQa: {
+        finish: iteration => R.cond([
+            [R.equals(0), () => flip(0.3, 'fixTechLeadCodeReviewForQa', 'readyForQa')],
+            [R.T, R.always('readyForQa')]
+        ])(iteration)
+    },
+    fixTechLeadCodeReviewForQa: {
+        finish: () => 'techLeadCodeReviewForQa'
+    },
+    readyAAReview: {
+        finish: iteration => R.cond([
+            [R.equals(0), R.always('fixAAReview')],
+            [R.equals(1), () => flip(0.5, 'fixAAReview', 'readyForRegression')],
+            [R.equals(2), () => flip(0.1, 'fixAAReview', 'readyForRegression')],
+            [R.T, R.always('readyForRegression')]
+        ])(iteration)
+    },
+    fixAAReview: {
+        finish: () => 'readyAAReview'
+    },
+    readyForRegression: {
+        finish: iteration => R.cond([
+            [R.equals(0), () => flip(0.5, 'bugFixRegression', 'readyForDemo')],
+            [R.T, R.always('readyForDemo')]
+        ])(iteration)
+    },
+    bugFixRegression: {
+        finish: () => 'waitingTechLeadReviewForRegression'
+    },
+    waitingTechLeadReviewForRegression: {
+        finish: () => 'waitingAAReviewForRegression'
+    },
+    waitingAAReviewForRegression: {
+        finish: () => 'readyForRegression'
+    },
+    readyForDemo: {
+        finish: iteration => R.cond([
+            [R.equals(0), () => flip(0.05, 'bugFixDemo', 'readyForRelease')],
+            [R.T, R.always('readyForRelease')]
+        ])(iteration)
+    },
+    bugFixDemo: {
+        finish: () => 'waitingTechLeadReviewForDemo'
+    },
+    waitingTechLeadReviewForDemo: {
+        finish: () => 'waitingAAReviewForDemo'
+    },
+    waitingAAReviewForDemo: {
+        finish: () => 'readyForRegression'
+    },
+    readyForRelease: {
+        finish: () => 'shipped'
     }
 };
 
-const people = [
-    { type: 'dev', amount: 5, statusToLookFor: ['new', 'devCodeReview', 'fixDevCodeReview'] },
-    { type: 'techLead', amount: 1, statusToLookFor: ['techLeadCodeReview'] },
-    { type: 'architect', amount: 1 },
-    { type: 'qa', amount: 1 },
-    { type: 'po', amount: 1 }
+const people = [{
+        type: 'dev',
+        amount: 5,
+        statusToLookFor: [
+            'waitingDev',
+            'waitingDevCodeReview',
+            'fixDevCodeReview',
+            'fixTechLeadCodeReview',
+            'bugFixQa',
+            'waitingDevCodeReviewForQA',
+            'fixDevCodeReviewForQa',
+            'fixTechLeadCodeReviewForQa',
+            'fixAAReview',
+            'bugFixRegression',
+            'bugFixDemo'
+        ]
+    },
+    {
+        type: 'techLead',
+        amount: 1,
+        statusToLookFor: [
+            'techLeadCodeReview',
+            'techLeadCodeReviewForQa',
+            'waitingTechLeadReviewForRegression',
+            'waitingTechLeadReviewForDemo'
+        ]
+    },
+    {
+        type: 'architect',
+        amount: 1,
+        statusToLookFor: [
+            'readyAAReview',
+            'waitingAAReviewForRegression',
+            'waitingAAReviewForDemo',
+            'readyForRelease'
+        ]
+    },
+    {
+        type: 'qa',
+        amount: 1,
+        statusToLookFor: [
+            'readyForQa',
+            'readyForRegression',
+            'readyForDemo'
+        ]
+    }
 ];
 
 const workToDo = [
-    { type: 'feature', amount: 5 },
-    { type: 'bug', amount: 2 }
+    { type: 'feature', amount: 10 }
 ];
 
 ////////////////////////////////////
@@ -52,6 +187,7 @@ const workToDo = [
 
 const currentProcess = generateProcess(devProcess, people, workToDo);
 currentProcess.render();
+currentProcess.startProcess();
 
 
 /////////////////////////
@@ -68,74 +204,134 @@ function generateProcess(devProcess, peopleConfiguration, workload) {
 
     return {
         render: () => render('.dev-process', template(wholeDevProcess, [store])),
-        startProcess: () => findWorkToDo(store.workToDo, store.people),
-        updateWorkToDO: work => store.workToDo = work,
-        updatePeople: listOfPeople => store.people = listOfPeople,
-        durationForProcessStep: duration => {
-            store.processBaseDuration = duration;
-            store.iterationDev += 1;
-            store.processTotalDuration += duration;
-            store.previousChoices.push(store.nextChoice);
-            store.nextChoice = R.path(['devProcess', R.path(['nextChoice', 'nextStep'], store)], store);
+        startProcess: () => findWorkToDo(store.people),
+        findTaskForPeople: person => {
+            const result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(cur.status, person.statusToLookFor)), store.workToDo));
+
+            if (isNotNil(result)) {
+                const updatedPeople = R.evolve({
+                    busy: R.T,
+                    workOn: R.always(result.identifier)
+                }, person);
+                const updatedTask = R.evolve({
+                    busy: R.T
+                }, result);
+
+                asyncFunction(finishWork, result.estimate, { person: updatedPeople, task: updatedTask });
+
+                store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
+                store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+            }
         },
-        goToNextStep: target => {
-            store[iterationOfStep(R.path(['nextChoice', 'type'], store))] += 1;
-            store.processTotalDuration += timeFraction(
-                R.prop('processBaseDuration', store),
-                R.prop(iterationOfStep(R.path(['nextChoice', 'type'], store)), store) || 1,
-                R.path(['nextChoice', 'fraction'], store)
-            );
-            store.previousChoices.push(store.nextChoice);
-            store.nextChoice = R.path(['devProcess', target], store);
+        findPeopleForTask: task => {
+            const result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(task.status, cur.statusToLookFor)), store.people));
+
+            if (isNotNil(result)) {
+                const updatedPeople = R.evolve({
+                    busy: R.T,
+                    workOn: R.always(result.identifier)
+                }, result);
+                const updatedTask = R.evolve({
+                    busy: R.T
+                }, task);
+
+                asyncFunction(finishWork, task.estimate, { person: updatedPeople, task: updatedTask });
+
+                store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
+                store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+            }
         },
-        duration: () => cleanNumber(store.processTotalDuration),
-        durationAgainstBaseDuration: () => cleanNumber(variation(store.processBaseDuration, store.processTotalDuration))
+        transition: (person, task) => {
+            log('prev status', task.status, task.iteration);
+            const newStatus = store.devProcess[task.status].finish(task.iteration);
+            log('new status', newStatus);
+
+            const updatedPeople = R.evolve({
+                busy: R.F,
+                workOn: R.always(null)
+            }, person);
+            const updatedTask = R.evolve({
+                busy: R.F,
+                status: R.always(newStatus),
+                iteration: R.cond([
+                    [() => R.or(R.includes(newStatus, statusThatIncreaseIteration), R.includes(newStatus, task.previousStatuses)), R.inc],
+                    [() => R.includes(newStatus, statusThatResetIteration), R.always(0)],
+                    [R.T, R.identity]
+                ]),
+                previousStatuses: R.append(task.status)
+            }, task);
+
+            store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
+            store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+
+            findWorkToDo([updatedPeople]);
+            findPeopleToWork([updatedTask]);
+
+        }
     };
 }
 
 function generatePeople(peopleConfiguration) {
     return R.compose(
+        mapIndexed((cur, index) => R.evolve({
+            index: R.always(index),
+            identifier: () => r()
+        }, cur)),
         R.flatten,
         R.map(cur => R.repeat({
+            index: null,
+            identifier: null,
+            busy: false,
+            statusToLookFor: R.prop('statusToLookFor', cur),
             type: R.prop('type', cur),
-            toDoList: [],
-            currentJob: null,
-            statusToLookFor: R.prop('statusToLookFor', cur)
+            workOn: null
         }, R.prop('amount', cur)))
     )(peopleConfiguration);
 }
 
 function generateWork(workload) {
     return R.compose(
+        mapIndexed((cur, index) => R.evolve({
+            index: R.always(index),
+            identifier: () => r()
+        }, cur)),
         R.flatten,
         R.map(cur => R.repeat({
-            type: R.prop('type', cur),
-            estimate: 8,
-            status: 'new',
+            index: null,
+            identifier: null,
+            iteration: 0,
+            busy: false,
             duration: 0,
-            waitingTime: 0,
-            startTime: Date.now()
+            estimate: 8,
+            previousStatuses: [],
+            startTime: Date.now(),
+            status: 'waitingDev',
+            type: R.prop('type', cur),
+            waitingTime: 0
         }, R.prop('amount', cur)))
     )(workload);
 }
 
-function findWorkToDo(workToDo, people) {
+function findWorkToDo(people) {
+    R.forEach(cur => {
+        currentProcess.findTaskForPeople(cur);
+    }, people);
 
+    currentProcess.render();
+}
+
+function findPeopleToWork(listOfTasks) {
+    R.forEach(cur => {
+        currentProcess.findPeopleForTask(cur);
+    }, listOfTasks);
+
+    currentProcess.render();
 }
 
 
 ////////////
 // Views //
 //////////
-
-function nextChoiceView(choice, index) {
-    log(choice);
-    return R.cond([
-        [c => R.equals(R.prop('behaviour', c), NOTHING), nothingView],
-        [c => R.equals(R.prop('behaviour', c), ASK_DURATION), askDurationView],
-        [c => R.equals(R.prop('behaviour', c), FRACTION_TIME), choiceView]
-    ])(choice);
-}
 
 function nothingView(choice) {
     return `<h3>You are done!</h3>`;
@@ -188,8 +384,6 @@ function previousChoicesView(choice) {
 function wholeDevProcess(devProcess) {
     const p = R.prop(R.__, devProcess);
 
-    log(devProcess);
-
     return `<p>Hello</p>`;
 }
 
@@ -200,7 +394,7 @@ function wholeDevProcess(devProcess) {
 
 // asyncFunction :: (number, object) -> number
 function asyncFunction(functionToApply, delay, params) {
-    return window.setTimeout(functionToApply, loadingToMillisec(delay), params);
+    return window.setTimeout(functionToApply, R.divide(loadingToMillisec(delay), hoursInADay), params);
 }
 
 // registerEvents :: [object] -> void
@@ -209,6 +403,10 @@ function registerEvents(listOfEvents) {
         const p = R.prop(R.__, cur);
         document.body.addEventListener(p('type'), p('funct'), false);
     }, listOfEvents);
+}
+
+function finishWork(data) {
+    currentProcess.transition(data.person, data.task);
 }
 
 
@@ -226,6 +424,22 @@ function render(domSelector, content) {
     const domElements = document.querySelectorAll(domSelector);
 
     R.forEach(cur => cur.innerHTML = doc, domElements);
+}
+
+// r :: string
+function r() {
+    return Math.random().toString(36).substring(7);
+}
+
+// flip:: (number, string, string) -> string
+function flip(percent, fail, succeed) {
+    return R.ifElse(
+        R.gte(percent),
+        // Fail: percent >= random
+        R.always(fail),
+        // Succeed: percent < random
+        R.always(succeed)
+    )(Math.random());
 }
 
 // template :: (function, array) -> string
