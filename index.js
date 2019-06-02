@@ -296,7 +296,6 @@ function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints,
 }
 
 function newSprint(nbTickets) {
-    log('newSprint');
     currentProcess.startNewSprint(nbTickets);
     currentProcess.startProcess();
 }
