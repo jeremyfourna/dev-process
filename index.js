@@ -32,16 +32,22 @@ const statusThatResetIteration = [
 
 const devProcess = {
     waitingDev: {
-        finish: () => 'waitingDevCodeReview'
+        finish: () => 'waitingDevCodeReview',
+        remainingEstimate: (iteration, estimate) => 1 + estimate * 0.125
     },
     waitingDevCodeReview: {
         finish: iteration => R.cond([
             [R.equals(0), () => flip(0.5, 'fixDevCodeReview', 'techLeadCodeReview')],
             [R.T, R.always('techLeadCodeReview')]
+        ])(iteration),
+        remainingEstimate: (iteration, estimate) => R.cond([
+            [R.equals(0), () => 4],
+            [R.T, () => 1 + estimate * 0.125]
         ])(iteration)
     },
     fixDevCodeReview: {
-        finish: () => 'techLeadCodeReview'
+        finish: () => 'techLeadCodeReview',
+        remainingEstimate: (iteration, estimate) => 1 + estimate * 0.125
     },
     techLeadCodeReview: {
         finish: iteration => R.cond([
@@ -49,10 +55,17 @@ const devProcess = {
             [R.equals(1), () => flip(0.3, 'fixTechLeadCodeReview', 'readyForQa')],
             [R.equals(2), () => flip(0.1, 'fixTechLeadCodeReview', 'readyForQa')],
             [R.T, R.always('readyForQa')]
+        ])(iteration),
+        remainingEstimate: (iteration, estimate) => R.cond([
+            [R.equals(0), () => 4],
+            [R.equals(1), () => 3],
+            [R.equals(2), () => 2],
+            [R.T, () => estimate / 2]
         ])(iteration)
     },
     fixTechLeadCodeReview: {
-        finish: () => 'techLeadCodeReview'
+        finish: () => 'techLeadCodeReview',
+        remainingEstimate: (iteration, estimate) => 1 + estimate * 0.125
     },
     readyForQa: {
         finish: iteration => R.cond([
@@ -131,7 +144,7 @@ const devProcess = {
 
 const people = [{
         type: 'dev',
-        amount: 5,
+        amount: 1,
         statusToLookFor: [
             'waitingDev',
             'waitingDevCodeReview',
@@ -178,7 +191,7 @@ const people = [{
 ];
 
 const workToDo = [
-    { type: 'feature', amount: 10 }
+    { type: 'feature', amount: 1 }
 ];
 
 ////////////////////////////////////
@@ -211,10 +224,14 @@ function generateProcess(devProcess, peopleConfiguration, workload) {
             if (isNotNil(result)) {
                 const updatedPeople = R.evolve({
                     busy: R.T,
-                    workOn: R.always(result.identifier)
+                    workOn: R.always(result.identifier),
+                    restingTime: R.add(addTime(person.startTime)),
+                    startTime: R.always(Date.now())
                 }, person);
                 const updatedTask = R.evolve({
-                    busy: R.T
+                    busy: R.T,
+                    restingTime: R.add(addTime(result.startTime)),
+                    startTime: R.always(Date.now())
                 }, result);
 
                 asyncFunction(finishWork, result.estimate, { person: updatedPeople, task: updatedTask });
@@ -229,10 +246,14 @@ function generateProcess(devProcess, peopleConfiguration, workload) {
             if (isNotNil(result)) {
                 const updatedPeople = R.evolve({
                     busy: R.T,
-                    workOn: R.always(result.identifier)
+                    workOn: R.always(task.identifier),
+                    restingTime: R.add(addTime(result.startTime)),
+                    startTime: R.always(Date.now())
                 }, result);
                 const updatedTask = R.evolve({
-                    busy: R.T
+                    busy: R.T,
+                    restingTime: R.add(addTime(task.startTime)),
+                    startTime: R.always(Date.now())
                 }, task);
 
                 asyncFunction(finishWork, task.estimate, { person: updatedPeople, task: updatedTask });
@@ -242,13 +263,12 @@ function generateProcess(devProcess, peopleConfiguration, workload) {
             }
         },
         transition: (person, task) => {
-            log('prev status', task.status, task.iteration);
             const newStatus = store.devProcess[task.status].finish(task.iteration);
-            log('new status', newStatus);
-
             const updatedPeople = R.evolve({
                 busy: R.F,
-                workOn: R.always(null)
+                workOn: R.always(null),
+                busyTime: R.add(addTime(task.startTime)),
+                startTime: R.always(Date.now())
             }, person);
             const updatedTask = R.evolve({
                 busy: R.F,
@@ -258,7 +278,9 @@ function generateProcess(devProcess, peopleConfiguration, workload) {
                     [() => R.includes(newStatus, statusThatResetIteration), R.always(0)],
                     [R.T, R.identity]
                 ]),
-                previousStatuses: R.append(task.status)
+                previousStatuses: R.append(task.status),
+                busyTime: R.add(addTime(person.startTime)),
+                startTime: R.always(Date.now())
             }, task);
 
             store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
@@ -269,6 +291,10 @@ function generateProcess(devProcess, peopleConfiguration, workload) {
 
         }
     };
+}
+
+function addTime(time) {
+    return (Date.now() - time) / 1000;
 }
 
 function generatePeople(peopleConfiguration) {
@@ -282,6 +308,9 @@ function generatePeople(peopleConfiguration) {
             index: null,
             identifier: null,
             busy: false,
+            busyTime: 0,
+            restingTime: 0,
+            startTime: Date.now(),
             statusToLookFor: R.prop('statusToLookFor', cur),
             type: R.prop('type', cur),
             workOn: null
@@ -301,7 +330,8 @@ function generateWork(workload) {
             identifier: null,
             iteration: 0,
             busy: false,
-            duration: 0,
+            busyTime: 0,
+            restingTime: 0,
             estimate: 8,
             previousStatuses: [],
             startTime: Date.now(),
@@ -384,7 +414,107 @@ function previousChoicesView(choice) {
 function wholeDevProcess(devProcess) {
     const p = R.prop(R.__, devProcess);
 
-    return `<p>Hello</p>`;
+    return `<div>
+                <div id="non-busy-tasks">
+                    <h2>Tasks resting</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Status</th>
+                                <th>Estimate (in days)</th>
+                                <th>Busy Time (in days)</th>
+                                <th>Resting Time (in days)</th>
+                            </tr>
+                        <thead>
+                        <tbody>
+                            ${template(taskView, nonBusyTasks(devProcess.workToDo))}
+                        </tbody>
+                    </table>
+                </div>
+                <div id="people">
+                    <h2>People in the team</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Type</th>
+                                <th>Busy</th>
+                                <th>Busy Time (in days)</th>
+                                <th>Resting Time (in days)</th>
+                            </tr>
+                        <thead>
+                        <tbody>
+                            ${template(peopleView, devProcess.people)}
+                        </tbody>
+                    </table>
+                </div>
+                <div id="tasks-shipped">
+                    <h2>Tasks shipped</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Status</th>
+                                <th>Estimate (in days)</th>
+                                <th>Busy Time (in days)</th>
+                                <th>Resting Time (in days)</th>
+                            </tr>
+                        <thead>
+                        <tbody>
+                            ${template(taskView, shippedTasks(devProcess.workToDo))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+}
+
+function taskView(task) {
+    const p = R.prop(R.__, task);
+
+    return `<tr>
+                <td>${p('identifier')}</td>
+                <td>${p('status')}</td>
+                <td>${p('estimate')}</td>
+                <td>${cleanNumber(p('busyTime'))}</td>
+                <td>${cleanNumber(p('restingTime'))}</td>
+            </tr>`;
+}
+
+function nonBusyTasks(listOfTasks) {
+    return R.filter(cur => cur.busy === false && cur.status !== 'shipped', listOfTasks);
+}
+
+function shippedTasks(listOfTasks) {
+    return R.filter(cur => cur.status === 'shipped', listOfTasks);
+}
+
+function peopleView(person) {
+    const p = R.prop(R.__, person);
+
+    return `<tr class="${isBusyClass(p('busy'))}">
+                <td>${p('identifier')}</td>
+                <td>${p('type')}</td>
+                <td>${isWorking(p('workOn'))}</td>
+                <td>${cleanNumber(p('busyTime'))}</td>
+                <td>${cleanNumber(p('restingTime'))}</td>
+            </tr>`;
+}
+
+function isBusyClass(busy) {
+    if (busy) {
+        return 'person-working';
+    } else {
+        return 'person-resting';
+    }
+}
+
+function isWorking(taskId) {
+    if (R.isNil(taskId)) {
+        return `<span>Resting</span>`;
+    } else {
+        return `<span>${taskId}</span>`;
+    }
 }
 
 

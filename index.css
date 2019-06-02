@@ -63,3 +63,18 @@ input {
     grid-column: 2 / 3;
     grid-row: 2 / 3;
 }
+
+.person-working {
+    background-color: green;
+}
+
+.person-resting {
+    background-color: red;
+}
+
+table {
+    width: 100%;
+    margin-bottom: 5px;
+    margin-top: 5px;
+    border-spacing: 5px;
+}
