@@ -8,6 +8,7 @@ const isNotNil = R.complement(R.isNil);
 const isNotEmpty = R.complement(R.isEmpty);
 const mapIndexed = R.addIndex(R.map);
 const hoursInADay = 8;
+const sprintInHours = 80;
 const statusThatIncreaseIteration = [
     'fixDevCodeReview',
     'fixTechLeadCodeReview',
@@ -177,16 +178,12 @@ const people = [{
     }
 ];
 
-const workToDo = [
-    { type: 'feature', amount: 10 }
-];
-
 
 ////////////////////////////////////
 // Generate dev process and render it //
 //////////////////////////////////
 
-const currentProcess = generateProcess(devProcess, people, workToDo, Date.now());
+const currentProcess = generateProcess(devProcess, people, 20, Date.now(), 20);
 currentProcess.render();
 currentProcess.startProcess();
 
@@ -195,19 +192,22 @@ currentProcess.startProcess();
 // Dev process engine //
 ///////////////////////
 
-function generateProcess(devProcess, peopleConfiguration, workload, startTimeOfWholeProcess) {
+function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints, startTimeOfWholeProcess, durationInSec) {
+    const workToDo = [
+        { type: 'feature', amount: ticketsForEachSprints }
+    ];
     const p = R.prop(R.__, devProcess);
     const store = {
         devProcess,
-        workToDo: generateWork(workload),
+        workToDo: generateWork(workToDo),
         people: generatePeople(peopleConfiguration)
     };
 
     return {
         render: () => render('.dev-process', template(wholeDevProcess, [store])),
         startProcess: () => {
-            if ((Date.now() - startTimeOfWholeProcess) / 1000 <= 60) {
-                asyncFunction(newSprint, 80, 10);
+            if ((Date.now() - startTimeOfWholeProcess) / 1000 <= durationInSec) {
+                asyncFunction(newSprint, sprintInHours, ticketsForEachSprints);
             }
 
             findWorkToDo(R.filter(cur => cur.busy === false, store.people));
@@ -439,6 +439,9 @@ function wholeDevProcess(devProcess) {
                         <tbody>
                             ${template(taskView, nonBusyTasks(devProcess.workToDo))}
                         </tbody>
+                        <tfoot>
+                            ${template(taskSummaryView, [nonBusyTasks(devProcess.workToDo)])}
+                        </tfoot>
                     </table>
                 </div>
                 <div id="people">
@@ -456,6 +459,9 @@ function wholeDevProcess(devProcess) {
                         <tbody>
                             ${template(peopleView, devProcess.people)}
                         </tbody>
+                        <tfoot>
+                            ${template(peopleSummaryView, [devProcess.people])}
+                        </tfoot>
                     </table>
                 </div>
                 <div id="tasks-shipped">
@@ -473,6 +479,9 @@ function wholeDevProcess(devProcess) {
                         <tbody>
                             ${template(taskView, shippedTasks(devProcess.workToDo))}
                         </tbody>
+                        <tfoot>
+                            ${template(taskSummaryView, [shippedTasks(devProcess.workToDo)])}
+                        </tfoot>
                     </table>
                 </div>
             </div>`;
@@ -487,6 +496,18 @@ function taskView(task) {
                 <td>${p('originalEstimate')}</td>
                 <td>${cleanNumber(p('busyTime'))}</td>
                 <td>${cleanNumber(p('restingTime'))}</td>
+            </tr>`;
+}
+
+function taskSummaryView(tasks) {
+    const busyTime = R.reduce((prev, cur) => R.add(prev, cur.busyTime), 0, tasks);
+    const restingTime = R.reduce((prev, cur) => R.add(prev, cur.restingTime), 0, tasks);
+
+    return `<tr>
+                <td colspan="2">Efficiency: ${cleanNumber(busyTime/(busyTime+restingTime)*100) || 100}%</td>
+                <td>${cleanNumber(R.reduce((prev, cur) => R.add(prev, cur.originalEstimate), 0, tasks))}</td>
+                <td>${cleanNumber(busyTime)}</td>
+                <td>${cleanNumber(restingTime)}</td>
             </tr>`;
 }
 
@@ -507,6 +528,17 @@ function peopleView(person) {
                 <td>${isWorking(p('workOn'))}</td>
                 <td>${cleanNumber(p('busyTime'))}</td>
                 <td>${cleanNumber(p('restingTime'))}</td>
+            </tr>`;
+}
+
+function peopleSummaryView(people) {
+    const busyTime = R.reduce((prev, cur) => R.add(prev, cur.busyTime), 0, people);
+    const restingTime = R.reduce((prev, cur) => R.add(prev, cur.restingTime), 0, people);
+
+    return `<tr>
+                <td colspan="3">Efficiency: ${cleanNumber(busyTime/(busyTime+restingTime)*100) || 100}%</td>
+                <td>${cleanNumber(busyTime)}</td>
+                <td>${cleanNumber(restingTime)}</td>
             </tr>`;
 }
 
