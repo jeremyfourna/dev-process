@@ -4,297 +4,372 @@
 // Constants //
 //////////////
 
-const ASK_DURATION = 'ask-duration';
-const FRACTION_TIME = 'fraction-time';
-const TYPE_DEV = 'dev';
-const TYPE_REVIEW = 'review';
-const TYPE_QA = 'qa';
-const TYPE_AA_REVIEW = 'aa-review';
-const TYPE_RELEASE = 'release';
-const ANSWER_SELECTED = 'answer-selected';
-const NOTHING = 'NOTHING';
+const isNotNil = R.complement(R.isNil);
+const isNotEmpty = R.complement(R.isEmpty);
+const mapIndexed = R.addIndex(R.map);
+const hoursInADay = 8;
+const sprintInHours = 80;
+const statusThatIncreaseIteration = [
+    'fixDevCodeReview',
+    'fixTechLeadCodeReview',
+    'bugFixQa',
+    'fixDevCodeReviewForQa',
+    'fixTechLeadCodeReviewForQa',
+    'fixAAReview',
+    'bugFixRegression',
+    'bugFixDemo'
+];
+const statusThatResetIteration = [
+    'readyForQa',
+    'readyAAReview',
+    'readyForRegression',
+    'readyForDemo',
+    'readyForRelease'
+];
 
 /////////////////
 // Definition //
 ///////////////
 
 const devProcess = {
-    firstDev: {
-        id: 'first-dev',
-        name: 'Initial development',
-        behaviour: ASK_DURATION,
-        type: TYPE_DEV,
-        nextStep: 'codeReview'
+    waitingDev: {
+        finish: (iteration, estimate) => ['waitingDevCodeReview', 1 + estimate * 0.125]
     },
-    dev: {
-        id: 'dev',
-        name: 'More work on the code',
-        type: TYPE_DEV,
-        behaviour: FRACTION_TIME,
-        fraction: 0.20,
-        choices: [{
-            title: 'Send your code to review',
-            description: 'You hope your code is good enough!',
-            target: 'codeReview',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }]
+    waitingDevCodeReview: {
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), () => flip(0.5, ['fixDevCodeReview', 4], ['techLeadCodeReview', 1 + estimate * 0.125])],
+            [R.T, R.always(['techLeadCodeReview', 1 + estimate * 0.125])]
+        ])(iteration)
     },
-    codeReview: {
-        id: 'code-review',
-        name: 'Code review',
-        type: TYPE_REVIEW,
-        behaviour: FRACTION_TIME,
-        fraction: 0.15,
-        choices: [{
-            title: 'Pass code review',
-            description: 'The quality of the code is good!',
-            target: 'qa',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'Fail code review',
-            description: 'The quality of the code is not good enough',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
+    fixDevCodeReview: {
+        finish: (iteration, estimate) => ['techLeadCodeReview', 1 + estimate * 0.125]
     },
-    qa: {
-        id: 'qa',
-        name: 'QA',
-        type: TYPE_QA,
-        behaviour: FRACTION_TIME,
-        fraction: 0.20,
-        choices: [{
-            title: 'Pass QA',
-            description: 'You respected the functional requirements',
-            target: 'aaReview',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'Fail QA',
-            description: 'Dude, it is full of bugs',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
+    techLeadCodeReview: {
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), R.always(['fixTechLeadCodeReview', 4])],
+            [R.equals(1), () => flip(0.3, ['fixTechLeadCodeReview', 2], ['readyForQa', estimate / 2])],
+            [R.equals(2), () => flip(0.1, ['fixTechLeadCodeReview', 1], ['readyForQa', estimate / 2])],
+            [R.T, R.always(['readyForQa', estimate / 2])]
+        ])(iteration)
     },
-    regression: {
-        id: 'regression',
-        name: 'Regression QA',
-        type: TYPE_QA,
-        behaviour: FRACTION_TIME,
-        fraction: 0.20,
-        choices: [{
-            title: 'Pass Regression',
-            description: 'Everything still work',
-            target: 'demo',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'Fail Regression',
-            description: 'Dude, it is full of bugs again',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
+    fixTechLeadCodeReview: {
+        finish: (iteration, estimate) => ['techLeadCodeReview', 1 + estimate * 0.125],
     },
-    demo: {
-        id: 'regression',
-        name: 'Demo to PM',
-        type: TYPE_QA,
-        behaviour: FRACTION_TIME,
-        fraction: 0,
-        choices: [{
-            title: 'Pass product demo',
-            description: 'Your PM is happy',
-            target: 'release',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'Fail product demo',
-            description: 'Your PM is not happy at all',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
+    readyForQa: {
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), R.always(['bugFixQa', estimate / 2])],
+            [R.equals(1), () => flip(0.3, ['bugFixQa', 4], ['readyAAReview', estimate / 2])],
+            [R.equals(2), () => flip(0.1, ['bugFixQa', 2], ['readyAAReview', estimate / 2])],
+            [R.T, R.always(['readyAAReview', estimate / 2])]
+        ])(iteration)
     },
-    release: {
-        id: 'release',
-        name: 'Release',
-        type: TYPE_RELEASE,
-        behaviour: FRACTION_TIME,
-        fraction: 0.05,
-        choices: [{
-            title: 'Your code is released!!!',
-            description: 'Lets go party',
-            target: 'itIsOver',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'You have conflicts to fix',
-            description: 'More work for you',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
+    bugFixQa: {
+        finish: (iteration, estimate) => ['waitingDevCodeReviewForQA', 1 + estimate * 0.125]
     },
-    aaReview: {
-        id: 'aa-review',
-        name: 'Architecture review',
-        type: TYPE_AA_REVIEW,
-        behaviour: FRACTION_TIME,
-        fraction: 0.15,
-        choices: [{
-            title: 'Pass aa review',
-            description: 'The quality of the code is good!',
-            target: 'regression',
-            className: 'success',
-            type: ANSWER_SELECTED
-        }, {
-            title: 'Fail architecture code review',
-            description: 'The architecture of the code is not good enough',
-            target: 'dev',
-            className: 'danger',
-            type: ANSWER_SELECTED
-        }]
+    waitingDevCodeReviewForQA: {
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), () => flip(0.2, ['fixDevCodeReviewForQa', 3], ['techLeadCodeReviewForQa', 1 + estimate * 0.125])],
+            [R.T, R.always(['techLeadCodeReviewForQa', 1 + estimate * 0.125])]
+        ])(iteration)
     },
-    itIsOver: {
-        id: 'it-is-over',
-        name: 'You are done',
-        behaviour: NOTHING,
-        fraction: 0,
-        type: NOTHING
+    fixDevCodeReviewForQa: {
+        finish: (iteration, estimate) => ['techLeadCodeReviewForQa', 1 + estimate * 0.125]
+    },
+    techLeadCodeReviewForQa: {
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), () => flip(0.3, ['fixTechLeadCodeReviewForQa', 3], ['readyForQa', 3])],
+            [R.T, R.always(['readyForQa', 3])]
+        ])(iteration)
+    },
+    fixTechLeadCodeReviewForQa: {
+        finish: (iteration, estimate) => ['techLeadCodeReviewForQa', 1]
+    },
+    readyAAReview: {
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), R.always(['fixAAReview', estimate / 2])],
+            [R.equals(1), () => flip(0.5, ['fixAAReview', estimate / 4], ['readyForRegression', estimate / 2])],
+            [R.equals(2), () => flip(0.1, ['fixAAReview', estimate / 6], ['readyForRegression', estimate / 2])],
+            [R.T, R.always(['readyForRegression', estimate / 2])]
+        ])(iteration)
+    },
+    fixAAReview: {
+        finish: (iteration, estimate) => ['readyAAReview', estimate / 4]
+    },
+    readyForRegression: {
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), () => flip(0.5, ['bugFixRegression', 3], ['readyForDemo', 1])],
+            [R.T, R.always(['readyForDemo', 1])]
+        ])(iteration)
+    },
+    bugFixRegression: {
+        finish: (iteration, estimate) => ['waitingTechLeadReviewForRegression', 1]
+    },
+    waitingTechLeadReviewForRegression: {
+        finish: (iteration, estimate) => ['waitingAAReviewForRegression', 1]
+    },
+    waitingAAReviewForRegression: {
+        finish: (iteration, estimate) => ['readyForRegression', 2]
+    },
+    readyForDemo: {
+        finish: (iteration, estimate) => R.cond([
+            [R.equals(0), () => flip(0.05, ['bugFixDemo', 4], ['readyForRelease', 2])],
+            [R.T, R.always(['readyForRelease', 2])]
+        ])(iteration)
+    },
+    bugFixDemo: {
+        finish: (iteration, estimate) => ['waitingTechLeadReviewForDemo', 2]
+    },
+    waitingTechLeadReviewForDemo: {
+        finish: (iteration, estimate) => ['waitingAAReviewForDemo', 1]
+    },
+    waitingAAReviewForDemo: {
+        finish: (iteration, estimate) => ['readyForRegression', estimate / 6]
+    },
+    readyForRelease: {
+        finish: (iteration, estimate) => ['shipped', 0]
     }
 };
+
+const people = [{
+        type: 'dev',
+        amount: 5,
+        statusToLookFor: [
+            'waitingDev',
+            'waitingDevCodeReview',
+            'fixDevCodeReview',
+            'fixTechLeadCodeReview',
+            'bugFixQa',
+            'waitingDevCodeReviewForQA',
+            'fixDevCodeReviewForQa',
+            'fixTechLeadCodeReviewForQa',
+            'fixAAReview',
+            'bugFixRegression',
+            'bugFixDemo'
+        ]
+    },
+    {
+        type: 'techLead',
+        amount: 1,
+        statusToLookFor: [
+            'techLeadCodeReview',
+            'techLeadCodeReviewForQa',
+            'waitingTechLeadReviewForRegression',
+            'waitingTechLeadReviewForDemo'
+        ]
+    },
+    {
+        type: 'architect',
+        amount: 1,
+        statusToLookFor: [
+            'readyAAReview',
+            'waitingAAReviewForRegression',
+            'waitingAAReviewForDemo',
+            'readyForRelease'
+        ]
+    },
+    {
+        type: 'qa',
+        amount: 1,
+        statusToLookFor: [
+            'readyForQa',
+            'readyForRegression',
+            'readyForDemo'
+        ]
+    }
+];
+
 
 ////////////////////////////////////
 // Generate dev process and render it //
 //////////////////////////////////
 
-const currentProcess = generateProcess(devProcess, 'firstDev');
+const currentProcess = generateProcess(devProcess, people, 20, Date.now(), 20);
 currentProcess.render();
+currentProcess.startProcess();
 
-////////////
-// Utils //
-//////////
-
-// render :: (string, string) -> void
-function render(domSelector, content) {
-    const parser = new DOMParser();
-    const doc = R.path(
-        ['body', 'innerHTML'],
-        parser.parseFromString(content, 'text/html')
-    );
-    const domElements = document.querySelectorAll(domSelector);
-
-    R.forEach(cur => cur.innerHTML = doc, domElements);
-}
-
-// template :: (function, array) -> string
-function template(view, list) {
-    const mapIndexed = R.addIndex(R.map);
-
-    return R.join('', mapIndexed(view, list));
-}
-
-// datasetTransform :: object -> object
-function datasetTransform(dataset) {
-    const transformations = {
-        duration: Number
-    };
-
-    return R.evolve(transformations, dataset);
-}
-
-function log(content) {
-    console.log(...arguments);
-
-    return content;
-}
-
-function cleanNumber(number) {
-    return R.divide(Math.round(R.multiply(number, 100)), 100);
-}
-
-function timeFraction(duration, iteration, number) {
-    return duration * number / iteration;
-}
-
-function iterationOfStep(currentStepType) {
-    return R.cond([
-        [R.equals(TYPE_DEV), R.always('iterationDev')],
-        [R.equals(TYPE_REVIEW), R.always('iterationReview')],
-        [R.equals(TYPE_QA), R.always('iterationQa')],
-        [R.equals(TYPE_AA_REVIEW), R.always('iterationAAReview')],
-    ])(currentStepType);
-}
-
-function variation(before, after) {
-    if (before === 0) {
-        return 100;
-    } else {
-        return (after - before) / before * 100;
-    }
-}
 
 /////////////////////////
 // Dev process engine //
 ///////////////////////
 
-function generateProcess(devProcess, firstStep) {
+function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints, startTimeOfWholeProcess, durationInSec) {
+    const workToDo = [
+        { type: 'feature', amount: ticketsForEachSprints }
+    ];
     const p = R.prop(R.__, devProcess);
     const store = {
         devProcess,
-        previousChoices: [],
-        nextChoice: R.prop(firstStep, devProcess),
-        processBaseDuration: 0,
-        processTotalDuration: 0,
-        iterationDev: 0,
-        iterationQa: 0,
-        iterationReview: 0,
-        iterationAAReview: 0,
-        iterationRelease: 0
+        workToDo: generateWork(workToDo),
+        people: generatePeople(peopleConfiguration)
     };
 
     return {
         render: () => render('.dev-process', template(wholeDevProcess, [store])),
-        durationForProcessStep: duration => {
-            store.processBaseDuration = duration;
-            store.iterationDev += 1;
-            store.processTotalDuration += duration;
-            store.previousChoices.push(store.nextChoice);
-            store.nextChoice = R.path(['devProcess', R.path(['nextChoice', 'nextStep'], store)], store);
+        startProcess: () => {
+            if ((Date.now() - startTimeOfWholeProcess) / 1000 <= durationInSec) {
+                asyncFunction(newSprint, sprintInHours, ticketsForEachSprints);
+            }
+
+            findWorkToDo(R.filter(cur => cur.busy === false, store.people));
         },
-        goToNextStep: target => {
-            store[iterationOfStep(R.path(['nextChoice', 'type'], store))] += 1;
-            store.processTotalDuration += timeFraction(
-                R.prop('processBaseDuration', store),
-                R.prop(iterationOfStep(R.path(['nextChoice', 'type'], store)), store) || 1,
-                R.path(['nextChoice', 'fraction'], store)
-            );
-            store.previousChoices.push(store.nextChoice);
-            store.nextChoice = R.path(['devProcess', target], store);
+        findTaskForPeople: person => {
+            const result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(cur.status, person.statusToLookFor)), store.workToDo));
+
+            if (isNotNil(result)) {
+                const updatedPeople = R.evolve({
+                    busy: R.T,
+                    workOn: R.always(result.identifier),
+                    restingTime: R.add(addTime(person.startTime)),
+                    startTime: R.always(Date.now())
+                }, person);
+                const updatedTask = R.evolve({
+                    busy: R.T,
+                    restingTime: R.add(addTime(result.startTime)),
+                    startTime: R.always(Date.now())
+                }, result);
+
+                asyncFunction(finishWork, result.estimate, { person: updatedPeople, task: updatedTask });
+
+                store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
+                store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+            }
         },
-        duration: () => cleanNumber(store.processTotalDuration),
-        durationAgainstBaseDuration: () => cleanNumber(variation(store.processBaseDuration, store.processTotalDuration))
+        findPeopleForTask: task => {
+            const result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(task.status, cur.statusToLookFor)), store.people));
+
+            if (isNotNil(result)) {
+                const updatedPeople = R.evolve({
+                    busy: R.T,
+                    workOn: R.always(task.identifier),
+                    restingTime: R.add(addTime(result.startTime)),
+                    startTime: R.always(Date.now())
+                }, result);
+                const updatedTask = R.evolve({
+                    busy: R.T,
+                    restingTime: R.add(addTime(task.startTime)),
+                    startTime: R.always(Date.now())
+                }, task);
+
+                asyncFunction(finishWork, task.estimate, { person: updatedPeople, task: updatedTask });
+
+                store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
+                store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+            }
+        },
+        transition: (person, task) => {
+            const newStatusAndEstimate = store.devProcess[task.status].finish(task.iteration);
+            const updatedPeople = R.evolve({
+                busy: R.F,
+                workOn: R.always(null),
+                busyTime: R.add(addTime(task.startTime)),
+                startTime: R.always(Date.now())
+            }, person);
+            const updatedTask = R.evolve({
+                busy: R.F,
+                status: R.always(R.head(newStatusAndEstimate)),
+                iteration: R.cond([
+                    [() => R.or(R.includes(R.head(newStatusAndEstimate), statusThatIncreaseIteration), R.includes(R.head(newStatusAndEstimate), task.previousStatuses)), R.inc],
+                    [() => R.includes(R.head(newStatusAndEstimate), statusThatResetIteration), R.always(0)],
+                    [R.T, R.identity]
+                ]),
+                previousStatuses: R.append(task.status),
+                busyTime: R.add(addTime(person.startTime)),
+                startTime: R.always(Date.now()),
+                estimate: R.always(R.last(newStatusAndEstimate))
+            }, task);
+
+            store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
+            store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+
+            findWorkToDo([updatedPeople]);
+            findPeopleToWork([updatedTask]);
+
+        },
+        startNewSprint: nbTickets => {
+            const workToDo = [
+                { type: 'feature', amount: nbTickets }
+            ];
+
+            store.workToDo = R.concat(store.workToDo, generateWork(workToDo, R.length(store.workToDo)));
+        }
     };
+}
+
+function newSprint(nbTickets) {
+    currentProcess.startNewSprint(nbTickets);
+    currentProcess.startProcess();
+}
+
+function addTime(time) {
+    return (Date.now() - time) / 1000;
+}
+
+function generatePeople(peopleConfiguration) {
+    return R.compose(
+        mapIndexed((cur, index) => R.evolve({
+            index: R.always(index),
+            identifier: () => r()
+        }, cur)),
+        R.flatten,
+        R.map(cur => R.repeat({
+            index: null,
+            identifier: null,
+            busy: false,
+            busyTime: 0,
+            restingTime: 0,
+            startTime: Date.now(),
+            statusToLookFor: R.prop('statusToLookFor', cur),
+            type: R.prop('type', cur),
+            workOn: null
+        }, R.prop('amount', cur)))
+    )(peopleConfiguration);
+}
+
+function generateWork(workload, currentIndex = 0) {
+    return R.compose(
+        mapIndexed((cur, index) => R.evolve({
+            index: R.always(index + currentIndex),
+            identifier: () => r()
+        }, cur)),
+        R.flatten,
+        R.map(cur => R.repeat({
+            index: null,
+            identifier: null,
+            iteration: 0,
+            busy: false,
+            busyTime: 0,
+            restingTime: 0,
+            estimate: 8,
+            originalEstimate: 8,
+            previousStatuses: [],
+            startTime: Date.now(),
+            status: 'waitingDev',
+            type: R.prop('type', cur),
+            waitingTime: 0
+        }, R.prop('amount', cur)))
+    )(workload);
+}
+
+function findWorkToDo(people) {
+    R.forEach(cur => {
+        currentProcess.findTaskForPeople(cur);
+    }, people);
+
+    currentProcess.render();
+}
+
+function findPeopleToWork(listOfTasks) {
+    R.forEach(cur => {
+        currentProcess.findPeopleForTask(cur);
+    }, listOfTasks);
+
+    currentProcess.render();
 }
 
 
 ////////////
 // Views //
 //////////
-
-function nextChoiceView(choice, index) {
-    log(choice);
-    return R.cond([
-        [c => R.equals(R.prop('behaviour', c), NOTHING), nothingView],
-        [c => R.equals(R.prop('behaviour', c), ASK_DURATION), askDurationView],
-        [c => R.equals(R.prop('behaviour', c), FRACTION_TIME), choiceView]
-    ])(choice);
-}
 
 function nothingView(choice) {
     return `<h3>You are done!</h3>`;
@@ -337,33 +412,6 @@ function selectedAnwser(event) {
     }
 }
 
-function askDurationView(choice) {
-    const p = R.prop(R.__, choice);
-
-    registerEvents(
-        [{
-            type: 'submit',
-            funct: getFormData(ASK_DURATION, saveDuration)
-        }]
-    );
-
-    return `<h3>Next step in the process: ${p('name')}</h3>
-            <form id="${ASK_DURATION}" name="${ASK_DURATION}">
-                <div class="form-input">
-                    <label for="duration">How long this part of the process should take in <em>hours</em>?</label>
-                    <input type="number" min="1" step="1" name="duration" value="8" required="true">
-                </div>
-                <button type="submit" class="validate-choice">Validate your choice</button>
-            </form>`;
-}
-
-function saveDuration(event) {
-    const properData = datasetTransform(event);
-
-    currentProcess.durationForProcessStep(R.prop('duration', properData));
-    currentProcess.render();
-}
-
 function previousChoicesView(choice) {
     const p = R.prop(R.__, choice);
 
@@ -374,25 +422,150 @@ function previousChoicesView(choice) {
 function wholeDevProcess(devProcess) {
     const p = R.prop(R.__, devProcess);
 
-    log(devProcess);
-
-    return `<p>Current process duration: <b>${currentProcess.duration()}</b> hours, +${currentProcess.durationAgainstBaseDuration()}%</p>
-            <p>In number of work days: ${cleanNumber(currentProcess.duration()/8)}</p>
-            <div class="container">
-                <div class="next-choice">
-                    <h2>Next choice</h2>
-                    <div>${template(nextChoiceView, [p('nextChoice')])}</div>
+    return `<div>
+                <div id="non-busy-tasks">
+                    <h2>Tasks resting</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Status</th>
+                                <th>Estimate (in days)</th>
+                                <th>Busy Time (in days)</th>
+                                <th>Resting Time (in days)</th>
+                            </tr>
+                        <thead>
+                        <tbody>
+                            ${template(taskView, nonBusyTasks(devProcess.workToDo))}
+                        </tbody>
+                        <tfoot>
+                            ${template(taskSummaryView, [nonBusyTasks(devProcess.workToDo)])}
+                        </tfoot>
+                    </table>
                 </div>
-                <div class="previous-choices">
-                    <h2>List of previous choices</h2>
-                    <div><ol>${template(previousChoicesView, p('previousChoices'))}</ol></div>
+                <div id="people">
+                    <h2>People in the team</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Type</th>
+                                <th>Busy</th>
+                                <th>Busy Time (in days)</th>
+                                <th>Resting Time (in days)</th>
+                            </tr>
+                        <thead>
+                        <tbody>
+                            ${template(peopleView, devProcess.people)}
+                        </tbody>
+                        <tfoot>
+                            ${template(peopleSummaryView, [devProcess.people])}
+                        </tfoot>
+                    </table>
+                </div>
+                <div id="tasks-shipped">
+                    <h2>Tasks shipped</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Status</th>
+                                <th>Estimate (in days)</th>
+                                <th>Busy Time (in days)</th>
+                                <th>Resting Time (in days)</th>
+                            </tr>
+                        <thead>
+                        <tbody>
+                            ${template(taskView, shippedTasks(devProcess.workToDo))}
+                        </tbody>
+                        <tfoot>
+                            ${template(taskSummaryView, [shippedTasks(devProcess.workToDo)])}
+                        </tfoot>
+                    </table>
                 </div>
             </div>`;
 }
 
+function taskView(task) {
+    const p = R.prop(R.__, task);
+
+    return `<tr>
+                <td>${p('identifier')}</td>
+                <td>${p('status')}</td>
+                <td>${p('originalEstimate')}</td>
+                <td>${cleanNumber(p('busyTime'))}</td>
+                <td>${cleanNumber(p('restingTime'))}</td>
+            </tr>`;
+}
+
+function taskSummaryView(tasks) {
+    const busyTime = R.reduce((prev, cur) => R.add(prev, cur.busyTime), 0, tasks);
+    const restingTime = R.reduce((prev, cur) => R.add(prev, cur.restingTime), 0, tasks);
+
+    return `<tr>
+                <td colspan="2">Efficiency: ${cleanNumber(busyTime/(busyTime+restingTime)*100) || 100}%</td>
+                <td>${cleanNumber(R.reduce((prev, cur) => R.add(prev, cur.originalEstimate), 0, tasks))}</td>
+                <td>${cleanNumber(busyTime)}</td>
+                <td>${cleanNumber(restingTime)}</td>
+            </tr>`;
+}
+
+function nonBusyTasks(listOfTasks) {
+    return R.filter(cur => cur.busy === false && cur.status !== 'shipped', listOfTasks);
+}
+
+function shippedTasks(listOfTasks) {
+    return R.filter(cur => cur.status === 'shipped', listOfTasks);
+}
+
+function peopleView(person) {
+    const p = R.prop(R.__, person);
+
+    return `<tr class="${isBusyClass(p('busy'))}">
+                <td>${p('identifier')}</td>
+                <td>${p('type')}</td>
+                <td>${isWorking(p('workOn'))}</td>
+                <td>${cleanNumber(p('busyTime'))}</td>
+                <td>${cleanNumber(p('restingTime'))}</td>
+            </tr>`;
+}
+
+function peopleSummaryView(people) {
+    const busyTime = R.reduce((prev, cur) => R.add(prev, cur.busyTime), 0, people);
+    const restingTime = R.reduce((prev, cur) => R.add(prev, cur.restingTime), 0, people);
+
+    return `<tr>
+                <td colspan="3">Efficiency: ${cleanNumber(busyTime/(busyTime+restingTime)*100) || 100}%</td>
+                <td>${cleanNumber(busyTime)}</td>
+                <td>${cleanNumber(restingTime)}</td>
+            </tr>`;
+}
+
+function isBusyClass(busy) {
+    if (busy) {
+        return 'person-working';
+    } else {
+        return 'person-resting';
+    }
+}
+
+function isWorking(taskId) {
+    if (R.isNil(taskId)) {
+        return `<span>Resting</span>`;
+    } else {
+        return `<span>${taskId}</span>`;
+    }
+}
+
+
 /////////////
 // Events //
 ///////////
+
+// asyncFunction :: (number, object) -> number
+function asyncFunction(functionToApply, delay, params) {
+    return window.setTimeout(functionToApply, R.divide(loadingToMillisec(delay), hoursInADay), params);
+}
 
 // registerEvents :: [object] -> void
 function registerEvents(listOfEvents) {
@@ -400,6 +573,95 @@ function registerEvents(listOfEvents) {
         const p = R.prop(R.__, cur);
         document.body.addEventListener(p('type'), p('funct'), false);
     }, listOfEvents);
+}
+
+function finishWork(data) {
+    currentProcess.transition(data.person, data.task);
+}
+
+
+////////////
+// Utils //
+//////////
+
+// render :: (string, string) -> void
+function render(domSelector, content) {
+    const parser = new DOMParser();
+    const doc = R.path(
+        ['body', 'innerHTML'],
+        parser.parseFromString(content, 'text/html')
+    );
+    const domElements = document.querySelectorAll(domSelector);
+
+    R.forEach(cur => cur.innerHTML = doc, domElements);
+}
+
+// r :: string
+function r() {
+    return Math.random().toString(36).substring(7);
+}
+
+// flip:: (number, string, string) -> string
+function flip(percent, fail, succeed) {
+    return R.ifElse(
+        R.gte(percent),
+        // Fail: percent >= random
+        R.always(fail),
+        // Succeed: percent < random
+        R.always(succeed)
+    )(Math.random());
+}
+
+// template :: (function, array) -> string
+function template(view, list) {
+    const mapIndexed = R.addIndex(R.map);
+
+    return R.join('', mapIndexed(view, list));
+}
+
+// datasetTransform :: object -> object
+function datasetTransform(dataset) {
+    const transformations = {
+        duration: Number
+    };
+
+    return R.evolve(transformations, dataset);
+}
+
+// loadingToMillisec :: number -> number
+function loadingToMillisec(loading) {
+    return R.multiply(loading, 1000);
+}
+
+function log(content) {
+    console.log(...arguments);
+
+    return content;
+}
+
+function cleanNumber(number) {
+    return R.divide(Math.round(R.multiply(number, 100)), 100);
+}
+
+function timeFraction(duration, iteration, number) {
+    return duration * number / iteration;
+}
+
+function iterationOfStep(currentStepType) {
+    return R.cond([
+        [R.equals(TYPE_DEV), R.always('iterationDev')],
+        [R.equals(TYPE_REVIEW), R.always('iterationReview')],
+        [R.equals(TYPE_QA), R.always('iterationQa')],
+        [R.equals(TYPE_AA_REVIEW), R.always('iterationAAReview')],
+    ])(currentStepType);
+}
+
+function variation(before, after) {
+    if (before === 0) {
+        return 100;
+    } else {
+        return (after - before) / before * 100;
+    }
 }
 
 // getFormData :: string -> object -> object
