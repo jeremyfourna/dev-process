@@ -169,7 +169,7 @@ const people = [{
     },
     {
         type: 'qa',
-        amount: 2,
+        amount: 1,
         statusToLookFor: [
             'readyForQa',
             'readyForRegression',
@@ -199,14 +199,20 @@ function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints,
     ];
     const p = R.prop(R.__, devProcess);
     const store = {
+        canWork: true,
         devProcess,
         workToDo: generateWork(workToDo),
         people: generatePeople(peopleConfiguration)
     };
 
+    log('startNewSprint');
+
     return {
         render: () => render('.dev-process', template(wholeDevProcess, [store])),
         startProcess: () => {
+            if ((Date.now() - startTimeOfWholeProcess) / 1000 <= nbOfSprint * 10) {
+                asyncFunction(closeSprint, sprintInHours);
+            }
             if ((Date.now() - startTimeOfWholeProcess) / 1000 <= (nbOfSprint - 1) * 10) {
                 asyncFunction(newSprint, sprintInHours, ticketsForEachSprints);
             }
@@ -214,47 +220,56 @@ function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints,
             findWorkToDo(R.filter(cur => cur.busy === false, store.people));
         },
         findTaskForPeople: person => {
-            const result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(cur.status, person.statusToLookFor)), store.workToDo));
+            if (store.canWork === false) {
+                return false;
+            } else {
+                const result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(cur.status, person.statusToLookFor)), store.workToDo));
 
-            if (isNotNil(result)) {
-                const updatedPeople = R.evolve({
-                    busy: R.T,
-                    workOn: R.always(result.identifier),
-                    restingTime: R.add(addTime(person.startTime)),
-                    startTime: R.always(Date.now())
-                }, person);
-                const updatedTask = R.evolve({
-                    busy: R.T,
-                    restingTime: R.add(addTime(result.startTime)),
-                    startTime: R.always(Date.now())
-                }, result);
+                if (isNotNil(result)) {
+                    const updatedPeople = R.evolve({
+                        busy: R.T,
+                        workOn: R.always(result.identifier),
+                        restingTime: R.add(addTime(person.startTime)),
+                        startTime: R.always(Date.now())
+                    }, person);
+                    const updatedTask = R.evolve({
+                        busy: R.T,
+                        restingTime: R.add(addTime(result.startTime)),
+                        startTime: R.always(Date.now())
+                    }, result);
 
-                asyncFunction(finishWork, result.estimate, { person: updatedPeople, task: updatedTask });
+                    asyncFunction(finishWork, result.estimate, { person: updatedPeople, task: updatedTask });
 
-                store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
-                store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+                    store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
+                    store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+                }
             }
+
         },
         findPeopleForTask: task => {
-            const result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(task.status, cur.statusToLookFor)), store.people));
+            if (store.canWork === false) {
+                return false;
+            } else {
+                const result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(task.status, cur.statusToLookFor)), store.people));
 
-            if (isNotNil(result)) {
-                const updatedPeople = R.evolve({
-                    busy: R.T,
-                    workOn: R.always(task.identifier),
-                    restingTime: R.add(addTime(result.startTime)),
-                    startTime: R.always(Date.now())
-                }, result);
-                const updatedTask = R.evolve({
-                    busy: R.T,
-                    restingTime: R.add(addTime(task.startTime)),
-                    startTime: R.always(Date.now())
-                }, task);
+                if (isNotNil(result)) {
+                    const updatedPeople = R.evolve({
+                        busy: R.T,
+                        workOn: R.always(task.identifier),
+                        restingTime: R.add(addTime(result.startTime)),
+                        startTime: R.always(Date.now())
+                    }, result);
+                    const updatedTask = R.evolve({
+                        busy: R.T,
+                        restingTime: R.add(addTime(task.startTime)),
+                        startTime: R.always(Date.now())
+                    }, task);
 
-                asyncFunction(finishWork, task.estimate, { person: updatedPeople, task: updatedTask });
+                    asyncFunction(finishWork, task.estimate, { person: updatedPeople, task: updatedTask });
 
-                store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
-                store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+                    store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
+                    store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+                }
             }
         },
         transition: (person, task) => {
@@ -282,16 +297,35 @@ function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints,
             store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
             store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
 
-            findWorkToDo([updatedPeople]);
-            findPeopleToWork([updatedTask]);
-
+            if (store.canWork === false) {
+                return false;
+            } else {
+                findWorkToDo([updatedPeople]);
+                findPeopleToWork([updatedTask]);
+            }
         },
         startNewSprint: nbTickets => {
+            log('startNewSprint');
             const workToDo = [
                 { type: 'feature', amount: nbTickets }
             ];
-
+            store.canWork = true;
             store.workToDo = R.concat(store.workToDo, generateWork(workToDo, R.length(store.workToDo)));
+        },
+        closeSprint: () => {
+            log('closeSprint');
+            store.canWork = false;
+            store.people = R.map(cur => R.evolve({
+                busy: R.F,
+                workOn: R.always(null),
+                restingTime: R.add(addTime(cur.startTime)),
+                startTime: R.always(Date.now())
+            }, cur), store.people);
+            store.workToDo = R.map(cur => R.evolve({
+                busy: R.F,
+                restingTime: R.add(addTime(cur.startTime)),
+                startTime: R.always(Date.now())
+            }, cur), store.workToDo);
         }
     };
 }
@@ -299,6 +333,11 @@ function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints,
 function newSprint(nbTickets) {
     currentProcess.startNewSprint(nbTickets);
     currentProcess.startProcess();
+}
+
+function closeSprint() {
+    currentProcess.closeSprint();
+    currentProcess.render();
 }
 
 function addTime(time) {
@@ -434,6 +473,7 @@ function wholeDevProcess(devProcess) {
                                 <th>Busy</th>
                                 <th>Busy Time (in days)</th>
                                 <th>Waiting Time (in days)</th>
+                                <th>Efficiency</th>
                             </tr>
                         <thead>
                         <tbody>
@@ -455,6 +495,7 @@ function wholeDevProcess(devProcess) {
                                 <th>Number of Steps</th>
                                 <th>Busy Time (in days)</th>
                                 <th>Waiting Time (in days)</th>
+                                <th>Efficiency</th>
                             </tr>
                         <thead>
                         <tbody>
@@ -476,6 +517,7 @@ function wholeDevProcess(devProcess) {
                                 <th>Number of Steps</th>
                                 <th>Busy Time (in days)</th>
                                 <th>Waiting Time (in days)</th>
+                                <th>Efficiency</th>
                             </tr>
                         <thead>
                         <tbody>
@@ -499,6 +541,7 @@ function taskView(task) {
                 <td>${R.length(p('previousStatuses'))}</td>
                 <td>${cleanNumber(p('busyTime'))}</td>
                 <td>${cleanNumber(p('restingTime'))}</td>
+                <td>${cleanNumber(efficiency(p('busyTime'),p('restingTime')))}%</td>
             </tr>`;
 }
 
@@ -508,12 +551,23 @@ function taskSummaryView(tasks) {
     const nbSteps = R.reduce((prev, cur) => R.add(prev, R.length(cur.previousStatuses)), 0, tasks);
 
     return `<tr>
-                <td colspan="2">Efficiency: <b>${cleanNumber(busyTime/(busyTime+restingTime)*100) || 100}%</b></td>
+                <td colspan="2">Nb of tickets: ${tasks.length}</td>
                 <td>${cleanNumber(R.reduce((prev, cur) => R.add(prev, cur.originalEstimate), 0, tasks))}</td>
                 <td>${nbSteps} - ${cleanNumber(nbSteps/tasks.length) || 0} avg.</td>
                 <td>${cleanNumber(busyTime)} - ${cleanNumber(busyTime/tasks.length) || 0} avg.</td>
                 <td>${cleanNumber(restingTime)} - ${cleanNumber(restingTime/tasks.length) || 0} avg.</td>
+                <td>${cleanNumber(efficiency(busyTime, restingTime))}%</td>
             </tr>`;
+}
+
+function efficiency(busyTime, waitingTime) {
+    if (busyTime === 0) {
+        return 0;
+    } else {
+        const result = busyTime / (busyTime + waitingTime) * 100;
+
+        return result || 100;
+    }
 }
 
 function nonBusyTasks(listOfTasks) {
@@ -533,6 +587,7 @@ function peopleView(person) {
                 <td>${isWorking(p('workOn'))}</td>
                 <td>${cleanNumber(p('busyTime'))}</td>
                 <td>${cleanNumber(p('restingTime'))}</td>
+                <td>${cleanNumber(efficiency(p('busyTime'), p('restingTime')))}%</td>
             </tr>`;
 }
 
@@ -541,9 +596,10 @@ function peopleSummaryView(people) {
     const restingTime = R.reduce((prev, cur) => R.add(prev, cur.restingTime), 0, people);
 
     return `<tr>
-                <td colspan="3">Efficiency: <b>${cleanNumber(busyTime/(busyTime+restingTime)*100) || 100}%</b></td>
+                <td colspan="3"></td>
                 <td>${cleanNumber(busyTime)} - ${cleanNumber(busyTime/people.length) || 0} avg.</td>
                 <td>${cleanNumber(restingTime)} - ${cleanNumber(restingTime/people.length) || 0} avg.</td>
+                <td>${cleanNumber(efficiency(busyTime, restingTime))}%</td>
             </tr>`;
 }
 
@@ -569,7 +625,7 @@ function isWorking(taskId) {
 ///////////
 
 // asyncFunction :: (number, object) -> number
-function asyncFunction(functionToApply, delay, params) {
+function asyncFunction(functionToApply, delay, params = undefined) {
     const hoursInADay = 8;
 
     return window.setTimeout(functionToApply, R.divide(loadingToMillisec(delay), hoursInADay), params);
