@@ -72,6 +72,10 @@ input {
     background-color: tomato;
 }
 
+.is-injected {
+    background-color: cyan;
+}
+
 table {
     width: 100%;
     margin-bottom: 0.5rem;

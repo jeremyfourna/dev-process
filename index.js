@@ -183,7 +183,7 @@ const people = [{
 // Generate dev process and render it //
 //////////////////////////////////
 
-const currentProcess = generateProcess(devProcess, people, 10, Date.now(), 1);
+const currentProcess = generateProcess(devProcess, people, 26, Date.now(), 1);
 currentProcess.render();
 currentProcess.startProcess();
 
@@ -223,9 +223,30 @@ function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints,
             if (store.canWork === false) {
                 return false;
             } else {
-                const result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(cur.status, person.statusToLookFor)), store.workToDo));
+                let result = R.head(R.filter(cur => R.and(R.equals(cur.busy, false), R.includes(cur.status, person.statusToLookFor)), store.workToDo));
 
-                if (isNotNil(result)) {
+
+                if (R.isNil(result) && person.type === 'dev') {
+                    result = generateAdditionalWork('feature', R.length(store.workToDo));
+                    store.workToDo.push(result);
+
+                    const updatedPeople = R.evolve({
+                        busy: R.T,
+                        workOn: R.always(result.identifier),
+                        restingTime: R.add(addTime(person.startTime)),
+                        startTime: R.always(Date.now())
+                    }, person);
+                    const updatedTask = R.evolve({
+                        busy: R.T,
+                        restingTime: R.add(addTime(result.startTime)),
+                        startTime: R.always(Date.now())
+                    }, result);
+
+                    asyncFunction(finishWork, result.estimate, { person: updatedPeople, task: updatedTask });
+
+                    store.people = R.adjust(updatedPeople.index, R.always(updatedPeople), store.people);
+                    store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
+                } else if (isNotNil(result)) {
                     const updatedPeople = R.evolve({
                         busy: R.T,
                         workOn: R.always(result.identifier),
@@ -244,7 +265,6 @@ function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints,
                     store.workToDo = R.adjust(updatedTask.index, R.always(updatedTask), store.workToDo);
                 }
             }
-
         },
         findPeopleForTask: task => {
             if (store.canWork === false) {
@@ -375,6 +395,7 @@ function generateWork(workload, currentIndex = 0) {
         R.map(cur => R.repeat({
             index: null,
             identifier: null,
+            injected: false,
             iteration: 0,
             busy: false,
             busyTime: 0,
@@ -388,6 +409,25 @@ function generateWork(workload, currentIndex = 0) {
             waitingTime: 0
         }, R.prop('amount', cur)))
     )(workload);
+}
+
+function generateAdditionalWork(type, currentLength) {
+    return {
+        type,
+        index: currentLength,
+        identifier: r(),
+        injected: true,
+        iteration: 0,
+        busy: false,
+        busyTime: 0,
+        restingTime: 0,
+        estimate: 8,
+        originalEstimate: 8,
+        previousStatuses: [],
+        startTime: Date.now(),
+        status: 'waitingDev',
+        waitingTime: 0
+    };
 }
 
 function findWorkToDo(people) {
@@ -534,7 +574,7 @@ function wholeDevProcess(devProcess) {
 function taskView(task) {
     const p = R.prop(R.__, task);
 
-    return `<tr>
+    return `<tr class="${isInjected(p('injected'))}">
                 <td>${p('identifier')}</td>
                 <td>${p('status')}</td>
                 <td>${p('originalEstimate')}</td>
@@ -543,6 +583,14 @@ function taskView(task) {
                 <td>${cleanNumber(p('restingTime'))}</td>
                 <td>${cleanNumber(efficiency(p('busyTime'),p('restingTime')))}%</td>
             </tr>`;
+}
+
+function isInjected(bool) {
+    if (bool) {
+        return 'is-injected';
+    } else {
+        return '';
+    }
 }
 
 function taskSummaryView(tasks) {
