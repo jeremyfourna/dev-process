@@ -1,0 +1,24 @@
+{
+  "name": "dev-process",
+  "version": "0.0.1",
+  "description": "dev First CR fail from dev 50% dev 2 CR fail from TL 100% dev 3 CR from TL fail 70% dev 4 CR from TL 10 % dev 5 CR from TL 0%",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeremyfourna/dev-process.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jeremyfourna/dev-process/issues"
+  },
+  "homepage": "https://github.com/jeremyfourna/dev-process#readme",
+  "dependencies": {
+    "node-jira": "^0.2.0",
+    "ramda": "^0.26.1",
+    "request": "^2.88.0"
+  }
+}
