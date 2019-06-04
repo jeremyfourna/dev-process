@@ -7,8 +7,12 @@
 const isNotNil = R.complement(R.isNil);
 const isNotEmpty = R.complement(R.isEmpty);
 const mapIndexed = R.addIndex(R.map);
-const hoursInADay = 8;
-const sprintInHours = 80;
+
+
+/////////////////
+// Definition //
+///////////////
+
 const statusThatIncreaseIteration = [
     'fixDevCodeReview',
     'fixTechLeadCodeReview',
@@ -27,22 +31,18 @@ const statusThatResetIteration = [
     'readyForRelease'
 ];
 
-/////////////////
-// Definition //
-///////////////
-
 const devProcess = {
     waitingDev: {
-        finish: (iteration, estimate) => ['waitingDevCodeReview', 1 + estimate * 0.125]
+        finish: (iteration, estimate) => ['waitingDevCodeReview', 2 + estimate * 0.125]
     },
     waitingDevCodeReview: {
         finish: (iteration, estimate) => R.cond([
-            [R.equals(0), () => flip(0.5, ['fixDevCodeReview', 4], ['techLeadCodeReview', 1 + estimate * 0.125])],
-            [R.T, R.always(['techLeadCodeReview', 1 + estimate * 0.125])]
+            [R.equals(0), () => flip(0.5, ['fixDevCodeReview', 4], ['techLeadCodeReview', 2 + estimate * 0.125])],
+            [R.T, R.always(['techLeadCodeReview', 2 + estimate * 0.125])]
         ])(iteration)
     },
     fixDevCodeReview: {
-        finish: (iteration, estimate) => ['techLeadCodeReview', 1 + estimate * 0.125]
+        finish: (iteration, estimate) => ['techLeadCodeReview', 2 + estimate * 0.125]
     },
     techLeadCodeReview: {
         finish: (iteration, estimate) => R.cond([
@@ -53,7 +53,7 @@ const devProcess = {
         ])(iteration)
     },
     fixTechLeadCodeReview: {
-        finish: (iteration, estimate) => ['techLeadCodeReview', 1 + estimate * 0.125],
+        finish: (iteration, estimate) => ['techLeadCodeReview', 2 + estimate * 0.125],
     },
     readyForQa: {
         finish: (iteration, estimate) => R.cond([
@@ -132,7 +132,7 @@ const devProcess = {
 
 const people = [{
         type: 'dev',
-        amount: 5,
+        amount: 4,
         statusToLookFor: [
             'waitingDev',
             'waitingDevCodeReview',
@@ -169,7 +169,7 @@ const people = [{
     },
     {
         type: 'qa',
-        amount: 1,
+        amount: 2,
         statusToLookFor: [
             'readyForQa',
             'readyForRegression',
@@ -183,7 +183,7 @@ const people = [{
 // Generate dev process and render it //
 //////////////////////////////////
 
-const currentProcess = generateProcess(devProcess, people, 20, Date.now(), 20);
+const currentProcess = generateProcess(devProcess, people, 10, Date.now(), 1);
 currentProcess.render();
 currentProcess.startProcess();
 
@@ -192,7 +192,8 @@ currentProcess.startProcess();
 // Dev process engine //
 ///////////////////////
 
-function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints, startTimeOfWholeProcess, durationInSec) {
+function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints, startTimeOfWholeProcess, nbOfSprint) {
+    const sprintInHours = 80;
     const workToDo = [
         { type: 'feature', amount: ticketsForEachSprints }
     ];
@@ -206,7 +207,7 @@ function generateProcess(devProcess, peopleConfiguration, ticketsForEachSprints,
     return {
         render: () => render('.dev-process', template(wholeDevProcess, [store])),
         startProcess: () => {
-            if ((Date.now() - startTimeOfWholeProcess) / 1000 <= durationInSec) {
+            if ((Date.now() - startTimeOfWholeProcess) / 1000 <= (nbOfSprint - 1) * 10) {
                 asyncFunction(newSprint, sprintInHours, ticketsForEachSprints);
             }
 
@@ -423,26 +424,6 @@ function wholeDevProcess(devProcess) {
     const p = R.prop(R.__, devProcess);
 
     return `<div>
-                <div id="non-busy-tasks">
-                    <h2>Tasks resting</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Status</th>
-                                <th>Estimate (in days)</th>
-                                <th>Busy Time (in days)</th>
-                                <th>Resting Time (in days)</th>
-                            </tr>
-                        <thead>
-                        <tbody>
-                            ${template(taskView, nonBusyTasks(devProcess.workToDo))}
-                        </tbody>
-                        <tfoot>
-                            ${template(taskSummaryView, [nonBusyTasks(devProcess.workToDo)])}
-                        </tfoot>
-                    </table>
-                </div>
                 <div id="people">
                     <h2>People in the team</h2>
                     <table>
@@ -452,7 +433,7 @@ function wholeDevProcess(devProcess) {
                                 <th>Type</th>
                                 <th>Busy</th>
                                 <th>Busy Time (in days)</th>
-                                <th>Resting Time (in days)</th>
+                                <th>Waiting Time (in days)</th>
                             </tr>
                         <thead>
                         <tbody>
@@ -463,6 +444,27 @@ function wholeDevProcess(devProcess) {
                         </tfoot>
                     </table>
                 </div>
+                <div id="non-busy-tasks">
+                    <h2>Tasks waiting</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Status</th>
+                                <th>Estimate (in hours)</th>
+                                <th>Number of Steps</th>
+                                <th>Busy Time (in days)</th>
+                                <th>Waiting Time (in days)</th>
+                            </tr>
+                        <thead>
+                        <tbody>
+                            ${template(taskView, nonBusyTasks(devProcess.workToDo))}
+                        </tbody>
+                        <tfoot>
+                            ${template(taskSummaryView, [nonBusyTasks(devProcess.workToDo)])}
+                        </tfoot>
+                    </table>
+                </div>
                 <div id="tasks-shipped">
                     <h2>Tasks shipped</h2>
                     <table>
@@ -470,9 +472,10 @@ function wholeDevProcess(devProcess) {
                             <tr>
                                 <th>ID</th>
                                 <th>Status</th>
-                                <th>Estimate (in days)</th>
+                                <th>Estimate (in hours)</th>
+                                <th>Number of Steps</th>
                                 <th>Busy Time (in days)</th>
-                                <th>Resting Time (in days)</th>
+                                <th>Waiting Time (in days)</th>
                             </tr>
                         <thead>
                         <tbody>
@@ -493,6 +496,7 @@ function taskView(task) {
                 <td>${p('identifier')}</td>
                 <td>${p('status')}</td>
                 <td>${p('originalEstimate')}</td>
+                <td>${R.length(p('previousStatuses'))}</td>
                 <td>${cleanNumber(p('busyTime'))}</td>
                 <td>${cleanNumber(p('restingTime'))}</td>
             </tr>`;
@@ -501,12 +505,14 @@ function taskView(task) {
 function taskSummaryView(tasks) {
     const busyTime = R.reduce((prev, cur) => R.add(prev, cur.busyTime), 0, tasks);
     const restingTime = R.reduce((prev, cur) => R.add(prev, cur.restingTime), 0, tasks);
+    const nbSteps = R.reduce((prev, cur) => R.add(prev, R.length(cur.previousStatuses)), 0, tasks);
 
     return `<tr>
-                <td colspan="2">Efficiency: ${cleanNumber(busyTime/(busyTime+restingTime)*100) || 100}%</td>
+                <td colspan="2">Efficiency: <b>${cleanNumber(busyTime/(busyTime+restingTime)*100) || 100}%</b></td>
                 <td>${cleanNumber(R.reduce((prev, cur) => R.add(prev, cur.originalEstimate), 0, tasks))}</td>
-                <td>${cleanNumber(busyTime)}</td>
-                <td>${cleanNumber(restingTime)}</td>
+                <td>${nbSteps} - ${cleanNumber(nbSteps/tasks.length) || 0} avg.</td>
+                <td>${cleanNumber(busyTime)} - ${cleanNumber(busyTime/tasks.length) || 0} avg.</td>
+                <td>${cleanNumber(restingTime)} - ${cleanNumber(restingTime/tasks.length) || 0} avg.</td>
             </tr>`;
 }
 
@@ -535,9 +541,9 @@ function peopleSummaryView(people) {
     const restingTime = R.reduce((prev, cur) => R.add(prev, cur.restingTime), 0, people);
 
     return `<tr>
-                <td colspan="3">Efficiency: ${cleanNumber(busyTime/(busyTime+restingTime)*100) || 100}%</td>
-                <td>${cleanNumber(busyTime)}</td>
-                <td>${cleanNumber(restingTime)}</td>
+                <td colspan="3">Efficiency: <b>${cleanNumber(busyTime/(busyTime+restingTime)*100) || 100}%</b></td>
+                <td>${cleanNumber(busyTime)} - ${cleanNumber(busyTime/people.length) || 0} avg.</td>
+                <td>${cleanNumber(restingTime)} - ${cleanNumber(restingTime/people.length) || 0} avg.</td>
             </tr>`;
 }
 
@@ -551,9 +557,9 @@ function isBusyClass(busy) {
 
 function isWorking(taskId) {
     if (R.isNil(taskId)) {
-        return `<span>Resting</span>`;
+        return `<span>Waiting</span>`;
     } else {
-        return `<span>${taskId}</span>`;
+        return `<span>Working on <b>${taskId}</b></span>`;
     }
 }
 
@@ -564,6 +570,8 @@ function isWorking(taskId) {
 
 // asyncFunction :: (number, object) -> number
 function asyncFunction(functionToApply, delay, params) {
+    const hoursInADay = 8;
+
     return window.setTimeout(functionToApply, R.divide(loadingToMillisec(delay), hoursInADay), params);
 }
 

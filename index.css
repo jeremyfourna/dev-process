@@ -65,16 +65,26 @@ input {
 }
 
 .person-working {
-    background-color: green;
+    background-color: lightgreen;
 }
 
 .person-resting {
-    background-color: red;
+    background-color: tomato;
 }
 
 table {
     width: 100%;
-    margin-bottom: 5px;
-    margin-top: 5px;
-    border-spacing: 5px;
+    margin-bottom: 0.5rem;
+    margin-top: 0.5rem;
+    border-spacing: 0.25rem;
+}
+
+td,
+th {
+    padding: 0.5rem;
+}
+
+tfoot tr,
+thead tr {
+    background-color: lightgrey;
 }
